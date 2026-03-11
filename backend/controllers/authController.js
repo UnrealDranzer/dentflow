@@ -1,0 +1,314 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { pool } = require('../config/database');
+
+// Generate JWT token
+const generateToken = (clinic) => {
+  return jwt.sign(
+    { 
+      clinic_id: clinic.clinic_id,
+      email: clinic.email 
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+};
+
+// Register new clinic
+const register = async (req, res) => {
+  try {
+    const { clinic_name, email, phone, password } = req.body;
+
+    // Check if email already exists
+    const [existingClinics] = await pool.execute(
+      'SELECT clinic_id FROM clinics WHERE email = ?',
+      [email]
+    );
+
+    if (existingClinics.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already registered. Please login or use a different email.'
+      });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new clinic
+    const [result] = await pool.execute(
+      `INSERT INTO clinics (clinic_name, email, phone, password_hash, subscription_plan) 
+       VALUES (?, ?, ?, ?, 'free')`,
+      [clinic_name, email, phone, password_hash]
+    );
+
+    const clinic_id = result.insertId;
+
+    // Get the created clinic
+    const [clinics] = await pool.execute(
+      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, created_at FROM clinics WHERE clinic_id = ?',
+      [clinic_id]
+    );
+
+    const clinic = clinics[0];
+
+    // Generate token
+    const token = generateToken(clinic);
+
+    res.status(201).json({
+      success: true,
+      message: 'Clinic registered successfully',
+      data: {
+        clinic: {
+          clinic_id: clinic.clinic_id,
+          clinic_name: clinic.clinic_name,
+          email: clinic.email,
+          phone: clinic.phone,
+          subscription_plan: clinic.subscription_plan,
+          created_at: clinic.created_at
+        },
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed. Please try again.'
+    });
+  }
+};
+
+// Login clinic
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find clinic by email
+    const [clinics] = await pool.execute(
+      'SELECT clinic_id, clinic_name, email, phone, password_hash, subscription_plan, subscription_status, is_active FROM clinics WHERE email = ?',
+      [email]
+    );
+
+    if (clinics.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      });
+    }
+
+    const clinic = clinics[0];
+
+    // Check if clinic is active
+    if (!clinic.is_active) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated. Please contact support.'
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, clinic.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      });
+    }
+
+    // Update last login
+    await pool.execute(
+      'UPDATE clinics SET last_login_at = NOW() WHERE clinic_id = ?',
+      [clinic.clinic_id]
+    );
+
+    // Generate token
+    const token = generateToken(clinic);
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        clinic: {
+          clinic_id: clinic.clinic_id,
+          clinic_name: clinic.clinic_name,
+          email: clinic.email,
+          phone: clinic.phone,
+          subscription_plan: clinic.subscription_plan,
+          subscription_status: clinic.subscription_status
+        },
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed. Please try again.'
+    });
+  }
+};
+
+// Get current clinic profile
+const getMe = async (req, res) => {
+  try {
+    const [clinics] = await pool.execute(
+      `SELECT clinic_id, clinic_name, email, phone, subscription_plan, subscription_status,
+              working_hours_start, working_hours_end, working_days, timezone, currency,
+              address, city, state, country, postal_code, logo_url, website, google_review_link,
+              sms_enabled, whatsapp_enabled, created_at, last_login_at
+       FROM clinics WHERE clinic_id = ?`,
+      [req.clinic.clinic_id]
+    );
+
+    if (clinics.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Clinic not found.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { clinic: clinics[0] }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch clinic profile.'
+    });
+  }
+};
+
+// Update clinic profile
+const updateProfile = async (req, res) => {
+  try {
+    const {
+      clinic_name, phone, address, city, state, country, postal_code,
+      working_hours_start, working_hours_end, working_days, timezone,
+      website, google_review_link
+    } = req.body;
+
+    const updates = [];
+    const values = [];
+
+    if (clinic_name) { updates.push('clinic_name = ?'); values.push(clinic_name); }
+    if (phone) { updates.push('phone = ?'); values.push(phone); }
+    if (address) { updates.push('address = ?'); values.push(address); }
+    if (city) { updates.push('city = ?'); values.push(city); }
+    if (state) { updates.push('state = ?'); values.push(state); }
+    if (country) { updates.push('country = ?'); values.push(country); }
+    if (postal_code) { updates.push('postal_code = ?'); values.push(postal_code); }
+    if (working_hours_start) { updates.push('working_hours_start = ?'); values.push(working_hours_start); }
+    if (working_hours_end) { updates.push('working_hours_end = ?'); values.push(working_hours_end); }
+    if (working_days) { updates.push('working_days = ?'); values.push(JSON.stringify(working_days)); }
+    if (timezone) { updates.push('timezone = ?'); values.push(timezone); }
+    if (website) { updates.push('website = ?'); values.push(website); }
+    if (google_review_link) { updates.push('google_review_link = ?'); values.push(google_review_link); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update.'
+      });
+    }
+
+    values.push(req.clinic.clinic_id);
+
+    await pool.execute(
+      `UPDATE clinics SET ${updates.join(', ')} WHERE clinic_id = ?`,
+      values
+    );
+
+    // Get updated clinic
+    const [clinics] = await pool.execute(
+      `SELECT clinic_id, clinic_name, email, phone, working_hours_start, working_hours_end,
+              working_days, timezone, address, city, state, country, website, google_review_link
+       FROM clinics WHERE clinic_id = ?`,
+      [req.clinic.clinic_id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: { clinic: clinics[0] }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile.'
+    });
+  }
+};
+
+// Change password
+const changePassword = async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    // Get current password hash
+    const [clinics] = await pool.execute(
+      'SELECT password_hash FROM clinics WHERE clinic_id = ?',
+      [req.clinic.clinic_id]
+    );
+
+    if (clinics.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Clinic not found.'
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(current_password, clinics[0].password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect.'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const new_password_hash = await bcrypt.hash(new_password, saltRounds);
+
+    // Update password
+    await pool.execute(
+      'UPDATE clinics SET password_hash = ? WHERE clinic_id = ?',
+      [new_password_hash, req.clinic.clinic_id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password.'
+    });
+  }
+};
+
+// Logout (client-side token removal, but we can track if needed)
+const logout = async (req, res) => {
+  res.json({
+    success: true,
+    message: 'Logged out successfully.'
+  });
+};
+
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateProfile,
+  changePassword,
+  logout
+};
