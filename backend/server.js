@@ -61,5 +61,14 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  console.log("--- DEBUG INFO ---");
+  console.log("DATABASE_URL exists?", !!process.env.DATABASE_URL);
+  if (process.env.DATABASE_URL) {
+    // Only print the first few characters to verify it's not empty, don't leak full password in Render logs
+    console.log("DATABASE_URL starts with:", process.env.DATABASE_URL.substring(0, 15) + "...");
+  } else {
+    console.log("WARNING: DATABASE_URL IS UNDEFINED!");
+  }
+  console.log("------------------");
   await testConnection();
 });
