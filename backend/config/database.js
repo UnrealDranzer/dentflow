@@ -1,15 +1,24 @@
 const mysql = require("mysql2/promise");
 
-const pool = mysql.createPool(process.env.DATABASE_URL);
+const connectionString = process.env.DATABASE_URL;
 
-const testConnection = async () => {
+const pool = mysql.createPool({
+  uri: connectionString,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  waitForConnections: true,
+  connectionLimit: 10
+});
+
+async function testConnection() {
   try {
     const connection = await pool.getConnection();
-    console.log("Database connected successfully");
+    console.log("✅ Database connected successfully");
     connection.release();
   } catch (error) {
-    console.error("Database connection failed:", error);
+    console.error("❌ Database connection failed:", error);
   }
-};
+}
 
 module.exports = { pool, testConnection };
