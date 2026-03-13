@@ -20,8 +20,8 @@ const register = async (req, res) => {
     const { clinic_name, email, phone, password } = req.body;
 
     // Check if email already exists
-    const [existingClinics] = await pool.execute(
-      'SELECT clinic_id FROM clinics WHERE email = ?',
+    const { rows: existingClinics } = await pool.query(
+      'SELECT clinic_id FROM clinics WHERE email = $1',
       [email]
     );
 
@@ -37,17 +37,18 @@ const register = async (req, res) => {
     const password_hash = await bcrypt.hash(password, saltRounds);
 
     // Insert new clinic
-    const [result] = await pool.execute(
+    const { rows: result } = await pool.query(
       `INSERT INTO clinics (clinic_name, email, phone, password_hash, subscription_plan) 
-       VALUES (?, ?, ?, ?, 'free')`,
+       VALUES ($1, $2, $3, $4, 'free')
+       RETURNING clinic_id`,
       [clinic_name, email, phone, password_hash]
     );
 
-    const clinic_id = result.insertId;
+    const clinic_id = result[0].clinic_id;
 
     // Get the created clinic
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, created_at FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, created_at FROM clinics WHERE clinic_id = $1',
       [clinic_id]
     );
 
@@ -86,8 +87,8 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Find clinic by email
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, phone, password_hash, subscription_plan, subscription_status, is_active FROM clinics WHERE email = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, phone, password_hash, subscription_plan, subscription_status, is_active FROM clinics WHERE email = $1',
       [email]
     );
 
@@ -119,8 +120,8 @@ const login = async (req, res) => {
     }
 
     // Update last login
-    await pool.execute(
-      'UPDATE clinics SET last_login_at = NOW() WHERE clinic_id = ?',
+    await pool.query(
+      'UPDATE clinics SET last_login_at = NOW() WHERE clinic_id = $1',
       [clinic.clinic_id]
     );
 
@@ -154,12 +155,12 @@ const login = async (req, res) => {
 // Get current clinic profile
 const getMe = async (req, res) => {
   try {
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT clinic_id, clinic_name, email, phone, subscription_plan, subscription_status,
               working_hours_start, working_hours_end, working_days, timezone, currency,
               address, city, state, country, postal_code, logo_url, website, google_review_link,
               sms_enabled, whatsapp_enabled, created_at, last_login_at
-       FROM clinics WHERE clinic_id = ?`,
+       FROM clinics WHERE clinic_id = $1`,
       [req.clinic.clinic_id]
     );
 
@@ -218,16 +219,20 @@ const updateProfile = async (req, res) => {
 
     values.push(req.clinic.clinic_id);
 
-    await pool.execute(
-      `UPDATE clinics SET ${updates.join(', ')} WHERE clinic_id = ?`,
+    // SQL syntax for PostgreSQL updates with positional parameters
+    const postgresUpdates = updates.map((u, i) => u.replace('?', `$${i + 1}`));
+    const finalClinicIdPlaceholder = `$${values.length}`;
+
+    await pool.query(
+      `UPDATE clinics SET ${postgresUpdates.join(', ')} WHERE clinic_id = ${finalClinicIdPlaceholder}`,
       values
     );
 
     // Get updated clinic
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT clinic_id, clinic_name, email, phone, working_hours_start, working_hours_end,
               working_days, timezone, address, city, state, country, website, google_review_link
-       FROM clinics WHERE clinic_id = ?`,
+       FROM clinics WHERE clinic_id = $1`,
       [req.clinic.clinic_id]
     );
 
@@ -251,8 +256,8 @@ const changePassword = async (req, res) => {
     const { current_password, new_password } = req.body;
 
     // Get current password hash
-    const [clinics] = await pool.execute(
-      'SELECT password_hash FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT password_hash FROM clinics WHERE clinic_id = $1',
       [req.clinic.clinic_id]
     );
 
@@ -278,8 +283,8 @@ const changePassword = async (req, res) => {
     const new_password_hash = await bcrypt.hash(new_password, saltRounds);
 
     // Update password
-    await pool.execute(
-      'UPDATE clinics SET password_hash = ? WHERE clinic_id = ?',
+    await pool.query(
+      'UPDATE clinics SET password_hash = $1 WHERE clinic_id = $2',
       [new_password_hash, req.clinic.clinic_id]
     );
 

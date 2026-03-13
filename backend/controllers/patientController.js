@@ -15,14 +15,14 @@ const getAllPatients = async (req, res) => {
     let params = [clinic_id];
 
     if (search) {
-      query += ` AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)`;
+      query += ` AND (name ILIKE $2 OR phone ILIKE $3 OR email ILIKE $4)`;
       const term = `%${search}%`;
       params.push(term, term, term);
     }
 
     query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    const [patients] = await pool.execute(query, params);
+    const { rows: patients } = await pool.query(query, params);
 
     res.json({
       success: true,
@@ -46,8 +46,8 @@ const getPatientById = async (req, res) => {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
-    const [patients] = await pool.execute(
-      "SELECT * FROM patients WHERE patient_id = ? AND clinic_id = ?",
+    const { rows: patients } = await pool.query(
+      "SELECT * FROM patients WHERE patient_id = $1 AND clinic_id = $2",
       [id, clinic_id]
     );
 
@@ -103,8 +103,8 @@ const createPatient = async (req, res) => {
       });
     }
 
-    const [existingPatients] = await pool.execute(
-      "SELECT patient_id FROM patients WHERE clinic_id = ? AND phone = ?",
+    const { rows: existingPatients } = await pool.query(
+      "SELECT patient_id FROM patients WHERE clinic_id = $1 AND phone = $2",
       [clinic_id, phone]
     );
 
@@ -115,11 +115,12 @@ const createPatient = async (req, res) => {
       });
     }
 
-    const [result] = await pool.execute(
+    const { rows: result } = await pool.query(
       `INSERT INTO patients
       (clinic_id, name, phone, email, date_of_birth, gender, address, city, state,
        postal_code, emergency_contact_name, emergency_contact_phone, medical_history, allergies, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING patient_id`,
       [
         clinic_id,
         name,
@@ -139,9 +140,9 @@ const createPatient = async (req, res) => {
       ]
     );
 
-    const [patients] = await pool.execute(
-      "SELECT * FROM patients WHERE patient_id = ?",
-      [result.insertId]
+    const { rows: patients } = await pool.query(
+      "SELECT * FROM patients WHERE patient_id = $1",
+      [result[0].patient_id]
     );
 
     res.status(201).json({
@@ -169,9 +170,9 @@ const updatePatient = async (req, res) => {
 
     const { name, phone, email } = req.body;
 
-    await pool.execute(
-      `UPDATE patients SET name = ?, phone = ?, email = ?
-       WHERE patient_id = ? AND clinic_id = ?`,
+    await pool.query(
+      `UPDATE patients SET name = $1, phone = $2, email = $3
+       WHERE patient_id = $4 AND clinic_id = $5`,
       [name, phone, email, id, clinic_id]
     );
 
@@ -197,8 +198,8 @@ const deletePatient = async (req, res) => {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
-    await pool.execute(
-      "DELETE FROM patients WHERE patient_id = ? AND clinic_id = ?",
+    await pool.query(
+      "DELETE FROM patients WHERE patient_id = $1 AND clinic_id = $2",
       [id, clinic_id]
     );
 
@@ -223,8 +224,8 @@ const getPatientStats = async (req, res) => {
   try {
     const clinic_id = req.clinic.clinic_id;
 
-    const [result] = await pool.execute(
-      "SELECT COUNT(*) as total FROM patients WHERE clinic_id = ?",
+    const { rows: result } = await pool.query(
+      "SELECT COUNT(*) as total FROM patients WHERE clinic_id = $1",
       [clinic_id]
     );
 

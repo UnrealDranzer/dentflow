@@ -69,8 +69,14 @@ const getAllAppointments = async (req, res) => {
     // MySQL prepared statements can reject placeholders for LIMIT/OFFSET.
     query += ` ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
-    const [appointments] = await pool.execute(query, params);
-    const [countResult] = await pool.execute(countQuery, countParams);
+    // Convert ? to $1, $2, etc. for PostgreSQL
+    let paramIndex = 1;
+    const postgresQuery = query.replace(/\?/g, () => `$${paramIndex++}`);
+    paramIndex = 1; // reset for countQuery
+    const postgresCountQuery = countQuery.replace(/\?/g, () => `$${paramIndex++}`);
+
+    const { rows: appointments } = await pool.query(postgresQuery, params);
+    const { rows: countResult } = await pool.query(postgresCountQuery, countParams);
 
     res.json({
       success: true,
@@ -99,7 +105,7 @@ const getAppointmentById = async (req, res) => {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, 
               p.name as patient_name, p.phone as patient_phone, p.email as patient_email,
               p.date_of_birth, p.gender, p.address, p.medical_history, p.allergies,
@@ -108,7 +114,7 @@ const getAppointmentById = async (req, res) => {
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.appointment_id = ? AND a.clinic_id = ?`,
+       WHERE a.appointment_id = $1 AND a.clinic_id = $2`,
       [id, clinic_id]
     );
 
@@ -119,9 +125,9 @@ const getAppointmentById = async (req, res) => {
       });
     }
 
-    const [history] = await pool.execute(
+    const { rows: history } = await pool.query(
       `SELECT * FROM appointment_history 
-       WHERE appointment_id = ? 
+       WHERE appointment_id = $1 
        ORDER BY performed_at DESC`,
       [id]
     );
@@ -148,8 +154,8 @@ const createAppointment = async (req, res) => {
     const { patient_id, service_id, appointment_date, appointment_time, notes } = req.body;
     const clinic_id = req.clinic.clinic_id;
 
-    const [services] = await pool.execute(
-      'SELECT duration_minutes FROM services WHERE service_id = ? AND clinic_id = ? AND is_active = true',
+    const { rows: services } = await pool.query(
+      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
       [service_id, clinic_id]
     );
 
@@ -176,34 +182,35 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    const [result] = await pool.execute(
+    const { rows: result } = await pool.query(
       `INSERT INTO appointments (clinic_id, patient_id, service_id, appointment_date, appointment_time, 
         duration_minutes, status, notes, source)
-       VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, 'dashboard')`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, 'dashboard')
+       RETURNING appointment_id`,
       [clinic_id, patient_id, service_id, appointment_date, appointment_time, duration_minutes, notes]
     );
 
-    const appointment_id = result.insertId;
+    const appointment_id = result[0].appointment_id;
 
-    await pool.execute(
+    await pool.query(
       `INSERT INTO appointment_history (appointment_id, action, new_value, performed_by, notes)
-       VALUES (?, 'created', ?, ?, 'Appointment created via dashboard')`,
+       VALUES ($1, 'created', $2, $3, 'Appointment created via dashboard')`,
       [appointment_id, JSON.stringify({ status: 'scheduled', date: appointment_date, time: appointment_time }), clinic_id]
     );
 
-    await pool.execute(
+    await pool.query(
       `UPDATE patients 
-       SET last_visit = ?, total_visits = total_visits + 1
-       WHERE patient_id = ? AND clinic_id = ?`,
+       SET last_visit = $1, total_visits = total_visits + 1
+       WHERE patient_id = $2 AND clinic_id = $3`,
       [appointment_date, patient_id, clinic_id]
     );
 
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, p.name as patient_name, s.service_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.appointment_id = ?`,
+       WHERE a.appointment_id = $1`,
       [appointment_id]
     );
 
@@ -237,8 +244,8 @@ const updateAppointment = async (req, res) => {
     const { appointment_date, appointment_time, status, notes, service_id } = req.body;
     const clinic_id = req.clinic.clinic_id;
 
-    const [currentAppointments] = await pool.execute(
-      'SELECT * FROM appointments WHERE appointment_id = ? AND clinic_id = ?',
+    const { rows: currentAppointments } = await pool.query(
+      'SELECT * FROM appointments WHERE appointment_id = $1 AND clinic_id = $2',
       [id, clinic_id]
     );
 
@@ -314,8 +321,8 @@ const updateAppointment = async (req, res) => {
     }
 
     if (service_id) {
-      const [services] = await pool.execute(
-        'SELECT duration_minutes FROM services WHERE service_id = ? AND clinic_id = ?',
+      const { rows: services } = await pool.query(
+        'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2',
         [service_id, clinic_id]
       );
 
@@ -336,25 +343,30 @@ const updateAppointment = async (req, res) => {
 
     values.push(id, clinic_id);
 
-    await pool.execute(
-      `UPDATE appointments SET ${updates.join(', ')} WHERE appointment_id = ? AND clinic_id = ?`,
+    // SQL syntax for PostgreSQL updates with positional parameters
+    const postgresUpdates = updates.map((u, i) => u.replace('?', `$${i + 1}`));
+    const finalIdPlaceholder = `$${values.length - 1}`;
+    const finalClinicIdPlaceholder = `$${values.length}`;
+
+    await pool.query(
+      `UPDATE appointments SET ${postgresUpdates.join(', ')} WHERE appointment_id = ${finalIdPlaceholder} AND clinic_id = ${finalClinicIdPlaceholder}`,
       values
     );
 
     for (const log of historyLogs) {
-      await pool.execute(
+      await pool.query(
         `INSERT INTO appointment_history (appointment_id, action, old_value, new_value, performed_by, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [id, log.action, log.old, log.new, clinic_id, 'Updated via dashboard']
       );
     }
 
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, p.name as patient_name, s.service_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.appointment_id = ?`,
+       WHERE a.appointment_id = $1`,
       [id]
     );
 
@@ -378,21 +390,21 @@ const deleteAppointment = async (req, res) => {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
-    const [result] = await pool.execute(
-      "UPDATE appointments SET status = 'cancelled' WHERE appointment_id = ? AND clinic_id = ?",
+    const result = await pool.query(
+      "UPDATE appointments SET status = 'cancelled' WHERE appointment_id = $1 AND clinic_id = $2",
       [id, clinic_id]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Appointment not found.'
       });
     }
 
-    await pool.execute(
+    await pool.query(
       `INSERT INTO appointment_history (appointment_id, action, new_value, performed_by, notes)
-       VALUES (?, 'cancelled', 'cancelled', ?, 'Appointment cancelled')`,
+       VALUES ($1, 'cancelled', 'cancelled', $2, 'Appointment cancelled')`,
       [id, clinic_id]
     );
 
@@ -422,8 +434,8 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
-    const [clinics] = await pool.execute(
-      'SELECT working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = $1',
       [clinic_id]
     );
 
@@ -478,8 +490,8 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
-    const [services] = await pool.execute(
-      'SELECT duration_minutes FROM services WHERE service_id = ? AND clinic_id = ?',
+    const { rows: services } = await pool.query(
+      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2',
       [service_id, clinic_id]
     );
 
@@ -492,10 +504,10 @@ const getAvailableSlots = async (req, res) => {
 
     const serviceDuration = services[0].duration_minutes;
 
-    const [existingAppointments] = await pool.execute(
+    const { rows: existingAppointments } = await pool.query(
       `SELECT appointment_time, duration_minutes 
        FROM appointments 
-       WHERE clinic_id = ? AND appointment_date = ? AND status IN ('scheduled', 'confirmed')
+       WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
        ORDER BY appointment_time`,
       [clinic_id, date]
     );
@@ -532,11 +544,11 @@ const getAvailableSlots = async (req, res) => {
 
 // Helper function to check time slot availability (UNCHANGED)
 const checkTimeSlotAvailability = async (clinic_id, date, time, duration, excludeAppointmentId = null) => {
-  const [existingAppointments] = await pool.execute(
+  const { rows: existingAppointments } = await pool.query(
     `SELECT appointment_time, duration_minutes 
      FROM appointments 
-     WHERE clinic_id = ? AND appointment_date = ? AND status IN ('scheduled', 'confirmed')
-     ${excludeAppointmentId ? 'AND appointment_id != ?' : ''}
+     WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
+     ${excludeAppointmentId ? 'AND appointment_id != $3' : ''}
      ORDER BY appointment_time`,
     excludeAppointmentId ? [clinic_id, date, excludeAppointmentId] : [clinic_id, date]
   );
@@ -611,14 +623,14 @@ const getTodayAppointments = async (req, res) => {
   try {
     const clinic_id = req.clinic.clinic_id;
 
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, 
               p.name as patient_name, p.phone as patient_phone,
               s.service_name, s.color_code
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? AND a.appointment_date = CURRENT_DATE()
+       WHERE a.clinic_id = $1 AND a.appointment_date = CURRENT_DATE
        ORDER BY a.appointment_time`,
       [clinic_id]
     );
@@ -643,15 +655,15 @@ const getUpcomingAppointments = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
     const limitNum = clamp(toSafeInt(limit, 10), 1, 200);
 
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, 
               p.name as patient_name, p.phone as patient_phone,
               s.service_name, s.color_code
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? 
-         AND a.appointment_date >= CURRENT_DATE()
+       WHERE a.clinic_id = $1 
+         AND a.appointment_date >= CURRENT_DATE
          AND a.status IN ('scheduled', 'confirmed')
        ORDER BY a.appointment_date, a.appointment_time
        LIMIT ${limitNum}`,
