@@ -61,6 +61,9 @@ app.get("/api/public/ping", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
+// Test database connection early
+testConnection();
+
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log("--- DEBUG INFO ---");
@@ -72,5 +75,4 @@ app.listen(PORT, async () => {
     console.log("WARNING: DATABASE_URL IS UNDEFINED!");
   }
   console.log("------------------");
-  await testConnection();
 });
