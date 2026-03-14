@@ -412,7 +412,8 @@ const deleteAppointment = async (req, res) => {
 // Get available time slots (FIXED)
 const getAvailableSlots = async (req, res) => {
   try {
-    const { date, service_id } = req.query;
+    const date = req.query.date;
+    const service_id = req.query.service_id || req.query.serviceId;
     const clinic_id = req.clinic.clinic_id;
 
     if (!date || !service_id) {
@@ -435,45 +436,32 @@ const getAvailableSlots = async (req, res) => {
     }
 
     const clinic = clinics[0];
+    const workingStart = clinic.working_hours_start || '09:00:00';
+    const workingEnd = clinic.working_hours_end || '18:00:00';
 
-    // Normalize working_days to an array of numbers regardless of DB type (JSON, text, etc.)
-    let workingDaysRaw = clinic.working_days;
-    let workingDays = [];
-
-    if (Array.isArray(workingDaysRaw)) {
-      // Already an array (e.g. MySQL JSON column)
-      workingDays = workingDaysRaw.map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n));
-    } else if (typeof workingDaysRaw === "string") {
-      const trimmed = workingDaysRaw.trim();
-      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-        // JSON string
-        try {
-          const parsed = JSON.parse(trimmed);
-          workingDays = (Array.isArray(parsed) ? parsed : []).map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n));
-        } catch (err) {
-          workingDays = trimmed
-            .split(",")
-            .map((d) => parseInt(d.trim(), 10))
-            .filter((n) => !Number.isNaN(n));
-        }
-      } else {
-        // Comma-separated string like "1,2,3"
-        workingDays = trimmed
-          .split(",")
-          .map((d) => parseInt(d.trim(), 10))
-          .filter((n) => !Number.isNaN(n));
-      }
+    // Normalize working_days to an array of numbers (0=Sun, 1=Mon, ... 6=Sat)
+    let workingDays;
+    try {
+      workingDays = JSON.parse(clinic.working_days);
+      if (!Array.isArray(workingDays)) workingDays = clinic.working_days.split(',').map((d) => parseInt(d.trim(), 10)).filter((n) => !Number.isNaN(n));
+      else workingDays = workingDays.map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n));
+    } catch (err) {
+      workingDays = (typeof clinic.working_days === 'string' ? clinic.working_days.split(',') : []).map((d) => parseInt(String(d).trim(), 10)).filter((n) => !Number.isNaN(n));
+    }
+    if (workingDays.length === 0) {
+      workingDays = [1, 2, 3, 4, 5, 6];
     }
 
-    // NEW FIX: Check if clinic works that day
-    const selectedDay = new Date(date).getDay();
+    // Check if clinic works on the selected day
+    const [year, month, day] = date.split('-').map(Number);
+    const selectedDay = new Date(year, month - 1, day).getDay();
     if (!workingDays.includes(selectedDay)) {
       return res.json({
         success: true,
         data: {
           date,
           slots: [],
-          message: "Clinic closed on this day"
+          message: 'Clinic closed on this day'
         }
       });
     }
@@ -501,11 +489,12 @@ const getAvailableSlots = async (req, res) => {
     );
 
     const slots = generateTimeSlots(
-      clinic.working_hours_start,
-      clinic.working_hours_end,
+      workingStart,
+      workingEnd,
       serviceDuration,
       existingAppointments,
-      date
+      date,
+      clinic.timezone || 'Asia/Kolkata'
     );
 
     res.json({
@@ -557,15 +546,39 @@ const checkTimeSlotAvailability = async (clinic_id, date, time, duration, exclud
 };
 
 // Helper function to generate time slots (FIXED)
-const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existingAppointments, date) => {
+const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existingAppointments, date, timezone = 'Asia/Kolkata') => {
   const slots = [];
   const startMinutes = timeToMinutes(workingStart);
   const endMinutes = timeToMinutes(workingEnd);
 
-  const isToday = date === new Date().toISOString().split('T')[0];
-  const currentMinutes = isToday ? (new Date().getHours() * 60 + new Date().getMinutes()) : 0;
+  // Timezone-aware "today" and "current time" check
+  const now = new Date();
+  let localDate, localHours, localMinutes;
 
-  // FIX: slot step uses service duration
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    localDate = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+    localHours = parseInt(parts.find(p => p.type === 'hour').value, 10);
+    localMinutes = parseInt(parts.find(p => p.type === 'minute').value, 10);
+  } catch (e) {
+    // Fallback if timezone is invalid
+    localDate = now.toISOString().split('T')[0];
+    localHours = now.getHours();
+    localMinutes = now.getMinutes();
+  }
+
+  const isToday = date === localDate;
+  const currentMinutes = isToday ? (localHours * 60 + localMinutes) : 0;
+
   for (let time = startMinutes; time + serviceDuration <= endMinutes; time += serviceDuration) {
     const slotTime = minutesToTime(time);
     const slotEnd = time + serviceDuration;

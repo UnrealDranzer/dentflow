@@ -30,10 +30,8 @@ interface Service {
   price: number;
 }
 
-interface TimeSlot {
-  time: string;
-  available: boolean;
-}
+// Slots from API can be strings (legacy) or { time, end_time?, available }
+type SlotItem = string | { time: string; end_time?: string; available: boolean };
 
 const NewAppointment = () => {
   const navigate = useNavigate();
@@ -42,10 +40,11 @@ const NewAppointment = () => {
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<SlotItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotMessage, setSlotMessage] = useState<string>('');
 
   const [formData, setFormData] = useState({
     patient_id: preselectedPatientId || '',
@@ -99,7 +98,8 @@ const NewAppointment = () => {
       });
 
       if (response.data.success) {
-        setAvailableSlots(response.data.data.slots);
+        setAvailableSlots(response.data.data.slots || []);
+        setSlotMessage(response.data.data.message || '');
       }
     } catch (error) {
       console.error('Failed to fetch available slots:', error);
@@ -242,28 +242,30 @@ const NewAppointment = () => {
                     Loading available slots...
                   </div>
                 ) : availableSlots.length === 0 ? (
-                  <p className="text-gray-500">No available slots for this date</p>
+                  <p className="text-gray-500">{slotMessage || 'No available slots for this date'}</p>
                 ) : (
                   <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                    {availableSlots.map((slot) => (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        disabled={!slot.available}
-                        onClick={() => setFormData({ ...formData, appointment_time: slot.time })}
-                        className={`
-                          p-2 text-sm rounded-lg border transition-colors
-                          ${formData.appointment_time === slot.time
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : slot.available
-                              ? 'bg-white hover:bg-gray-50 border-gray-200'
-                              : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                          }
-                        `}
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
+                    {availableSlots
+                      .map((s): { time: string; available: boolean } =>
+                        typeof s === 'string' ? { time: s, available: true } : { time: s.time, available: s.available }
+                      )
+                      .filter((s) => s.available)
+                      .map(({ time: slotTime }) => (
+                        <button
+                          key={slotTime}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, appointment_time: slotTime })}
+                          className={`
+                            p-2 text-sm rounded-lg border transition-colors
+                            ${formData.appointment_time === slotTime
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white hover:bg-gray-50 border-gray-200'
+                            }
+                          `}
+                        >
+                          {slotTime}
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
