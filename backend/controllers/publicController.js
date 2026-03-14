@@ -46,11 +46,11 @@ const getClinicPublicInfo = async (req, res) => {
   try {
     const { clinic_id } = req.params;
 
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT clinic_id, clinic_name, phone, working_hours_start, working_hours_end, 
               working_days, address, city, state, website, logo_url
        FROM clinics 
-       WHERE clinic_id = ? AND is_active = true AND subscription_status = 'active'`,
+       WHERE clinic_id = $1 AND is_active = true AND subscription_status = 'active'`,
       [clinic_id]
     );
 
@@ -62,8 +62,8 @@ const getClinicPublicInfo = async (req, res) => {
     }
 
     // Get active services
-    const [services] = await pool.execute(
-      'SELECT service_id, service_name, description, duration_minutes, price FROM services WHERE clinic_id = ? AND is_active = true',
+    const { rows: services } = await pool.query(
+      'SELECT service_id, service_name, description, duration_minutes, price FROM services WHERE clinic_id = $1 AND is_active = true',
       [clinic_id]
     );
 
@@ -89,8 +89,8 @@ const bookAppointment = async (req, res) => {
     const { clinic_id, name, phone, email, service_id, appointment_date, appointment_time, notes } = req.body;
 
     // Verify clinic exists and is active
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = ? AND is_active = true',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = $1 AND is_active = true',
       [clinic_id]
     );
 
@@ -115,8 +115,8 @@ const bookAppointment = async (req, res) => {
     }
 
     // Get service details
-    const [services] = await pool.execute(
-      'SELECT duration_minutes, price FROM services WHERE service_id = ? AND clinic_id = ? AND is_active = true',
+    const { rows: services } = await pool.query(
+      'SELECT duration_minutes, price FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
       [service_id, clinic_id]
     );
 
@@ -146,8 +146,8 @@ const bookAppointment = async (req, res) => {
 
     // Find or create patient
     let patient_id;
-    const [existingPatients] = await pool.execute(
-      'SELECT patient_id FROM patients WHERE clinic_id = ? AND phone = ?',
+    const { rows: existingPatients } = await pool.query(
+      'SELECT patient_id FROM patients WHERE clinic_id = $1 AND phone = $2',
       [clinic_id, phone]
     );
 
@@ -156,37 +156,38 @@ const bookAppointment = async (req, res) => {
       
       // Update patient info if needed
       if (email) {
-        await pool.execute(
-          'UPDATE patients SET email = ?, name = ? WHERE patient_id = ?',
+        await pool.query(
+          'UPDATE patients SET email = $1, name = $2 WHERE patient_id = $3',
           [email, name, patient_id]
         );
       }
     } else {
       // Create new patient
-      const [patientResult] = await pool.execute(
-        'INSERT INTO patients (clinic_id, name, phone, email) VALUES (?, ?, ?, ?)',
+      const { rows: patientResult } = await pool.query(
+        'INSERT INTO patients (clinic_id, name, phone, email) VALUES ($1, $2, $3, $4) RETURNING patient_id',
         [clinic_id, name, phone, email]
       );
-      patient_id = patientResult.insertId;
+      patient_id = patientResult[0].patient_id;
     }
 
     // Create appointment
-    const [appointmentResult] = await pool.execute(
+    const { rows: appointmentResult } = await pool.query(
       `INSERT INTO appointments (clinic_id, patient_id, service_id, appointment_date, appointment_time, 
         duration_minutes, status, notes, source)
-       VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, 'public_booking')`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, 'public_booking')
+       RETURNING appointment_id`,
       [clinic_id, patient_id, service_id, appointment_date, appointment_time, serviceDuration, notes]
     );
 
-    const appointment_id = appointmentResult.insertId;
+    const appointment_id = appointmentResult[0].appointment_id;
 
     // Get appointment details
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT a.*, p.name as patient_name, p.phone as patient_phone, s.service_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.appointment_id = ?`,
+       WHERE a.appointment_id = $1`,
       [appointment_id]
     );
 
@@ -226,8 +227,8 @@ const getPublicAvailableSlots = async (req, res) => {
     }
 
     // Get clinic working hours
-    const [clinics] = await pool.execute(
-      'SELECT working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = ? AND is_active = true',
+    const { rows: clinics } = await pool.query(
+      'SELECT working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = $1 AND is_active = true',
       [clinic_id]
     );
 
@@ -254,8 +255,8 @@ const getPublicAvailableSlots = async (req, res) => {
     }
 
     // Get service duration
-    const [services] = await pool.execute(
-      'SELECT duration_minutes FROM services WHERE service_id = ? AND clinic_id = ? AND is_active = true',
+    const { rows: services } = await pool.query(
+      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
       [service_id, clinic_id]
     );
 
@@ -269,10 +270,10 @@ const getPublicAvailableSlots = async (req, res) => {
     const serviceDuration = services[0].duration_minutes;
 
     // Get existing appointments
-    const [existingAppointments] = await pool.execute(
+    const { rows: existingAppointments } = await pool.query(
       `SELECT appointment_time, duration_minutes 
        FROM appointments 
-       WHERE clinic_id = ? AND appointment_date = ? AND status IN ('scheduled', 'confirmed')
+       WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
        ORDER BY appointment_time`,
       [clinic_id, date]
     );
@@ -309,10 +310,10 @@ const getPublicAvailableSlots = async (req, res) => {
 
 // Helper function to check time slot availability
 const checkTimeSlotAvailability = async (clinic_id, date, time, duration) => {
-  const [existingAppointments] = await pool.execute(
+  const { rows: existingAppointments } = await pool.query(
     `SELECT appointment_time, duration_minutes 
      FROM appointments 
-     WHERE clinic_id = ? AND appointment_date = ? AND status IN ('scheduled', 'confirmed')
+     WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
      ORDER BY appointment_time`,
     [clinic_id, date]
   );

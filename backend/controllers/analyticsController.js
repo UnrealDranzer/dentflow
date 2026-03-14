@@ -6,62 +6,62 @@ const getDashboardOverview = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
 
     // Today's appointments
-    const [todayAppointments] = await pool.execute(
+    const { rows: todayAppointments } = await pool.query(
       `SELECT COUNT(*) as total,
               SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
               SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
               SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
        FROM appointments 
-       WHERE clinic_id = ? AND appointment_date = CURRENT_DATE()`,
+       WHERE clinic_id = $1 AND appointment_date = CURRENT_DATE`,
       [clinic_id]
     );
 
     // Upcoming appointments (next 7 days)
-    const [upcomingAppointments] = await pool.execute(
+    const { rows: upcomingAppointments } = await pool.query(
       `SELECT COUNT(*) as total
        FROM appointments 
-       WHERE clinic_id = ? 
-         AND appointment_date > CURRENT_DATE()
-         AND appointment_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)
+       WHERE clinic_id = $1 
+         AND appointment_date > CURRENT_DATE
+         AND appointment_date <= CURRENT_DATE + INTERVAL '7 days'
          AND status IN ('scheduled', 'confirmed')`,
       [clinic_id]
     );
 
     // New patients this month
-    const [newPatients] = await pool.execute(
+    const { rows: newPatients } = await pool.query(
       `SELECT COUNT(*) as total
        FROM patients 
-       WHERE clinic_id = ? 
-         AND MONTH(created_at) = MONTH(CURRENT_DATE())
-         AND YEAR(created_at) = YEAR(CURRENT_DATE())`,
+       WHERE clinic_id = $1 
+         AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
       [clinic_id]
     );
 
     // Total patients
-    const [totalPatients] = await pool.execute(
-      'SELECT COUNT(*) as total FROM patients WHERE clinic_id = ?',
+    const { rows: totalPatients } = await pool.query(
+      'SELECT COUNT(*) as total FROM patients WHERE clinic_id = $1',
       [clinic_id]
     );
 
     // Monthly revenue (completed appointments)
-    const [monthlyRevenue] = await pool.execute(
+    const { rows: monthlyRevenue } = await pool.query(
       `SELECT COALESCE(SUM(s.price), 0) as total
        FROM appointments a
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? 
+       WHERE a.clinic_id = $1 
          AND a.status = 'completed'
-         AND MONTH(a.appointment_date) = MONTH(CURRENT_DATE())
-         AND YEAR(a.appointment_date) = YEAR(CURRENT_DATE())`,
+         AND EXTRACT(MONTH FROM a.appointment_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(YEAR FROM a.appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)`,
       [clinic_id]
     );
 
     // Recent appointments
-    const [recentAppointments] = await pool.execute(
+    const { rows: recentAppointments } = await pool.query(
       `SELECT a.*, p.name as patient_name, s.service_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ?
+       WHERE a.clinic_id = $1
        ORDER BY a.created_at DESC
        LIMIT 5`,
       [clinic_id]
@@ -102,32 +102,32 @@ const getAppointmentStats = async (req, res) => {
     const endDate = end_date || new Date().toISOString().split('T')[0];
 
     // Appointments by status
-    const [statusStats] = await pool.execute(
+    const { rows: statusStats } = await pool.query(
       `SELECT status, COUNT(*) as count
        FROM appointments 
-       WHERE clinic_id = ? AND appointment_date BETWEEN ? AND ?
+       WHERE clinic_id = $1 AND appointment_date BETWEEN $2 AND $3
        GROUP BY status`,
       [clinic_id, startDate, endDate]
     );
 
     // Appointments by day
-    const [dailyStats] = await pool.execute(
+    const { rows: dailyStats } = await pool.query(
       `SELECT appointment_date, COUNT(*) as count,
               SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
        FROM appointments 
-       WHERE clinic_id = ? AND appointment_date BETWEEN ? AND ?
+       WHERE clinic_id = $1 AND appointment_date BETWEEN $2 AND $3
        GROUP BY appointment_date
        ORDER BY appointment_date`,
       [clinic_id, startDate, endDate]
     );
 
     // Appointments by service
-    const [serviceStats] = await pool.execute(
+    const { rows: serviceStats } = await pool.query(
       `SELECT s.service_name, COUNT(a.appointment_id) as count
        FROM appointments a
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? AND a.appointment_date BETWEEN ? AND ?
-       GROUP BY s.service_id
+       WHERE a.clinic_id = $1 AND a.appointment_date BETWEEN $2 AND $3
+       GROUP BY s.service_id, s.service_name
        ORDER BY count DESC`,
       [clinic_id, startDate, endDate]
     );
@@ -161,49 +161,49 @@ const getRevenueAnalytics = async (req, res) => {
 
     switch (period) {
       case 'week':
-        dateFilter = 'appointment_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)';
+        dateFilter = "appointment_date >= CURRENT_DATE - INTERVAL '7 days'";
         groupBy = 'appointment_date';
         break;
       case 'year':
-        dateFilter = 'appointment_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)';
-        groupBy = 'YEAR(appointment_date), MONTH(appointment_date)';
+        dateFilter = "appointment_date >= CURRENT_DATE - INTERVAL '1 year'";
+        groupBy = "TO_CHAR(appointment_date, 'YYYY-MM')";
         break;
       case 'month':
       default:
-        dateFilter = 'appointment_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)';
+        dateFilter = "appointment_date >= CURRENT_DATE - INTERVAL '30 days'";
         groupBy = 'appointment_date';
     }
 
     // Revenue by period
-    const [revenueData] = await pool.execute(
+    const { rows: revenueData } = await pool.query(
       `SELECT 
-        ${period === 'year' ? 'DATE_FORMAT(appointment_date, "%Y-%m") as period' : 'appointment_date as period'},
+        ${period === 'year' ? "TO_CHAR(appointment_date, 'YYYY-MM') as period" : "appointment_date as period"},
         COALESCE(SUM(s.price), 0) as revenue,
         COUNT(a.appointment_id) as appointments
        FROM appointments a
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? AND ${dateFilter} AND a.status = 'completed'
-       GROUP BY ${groupBy}
+       WHERE a.clinic_id = $1 AND ${dateFilter} AND a.status = 'completed'
+       GROUP BY ${period === 'year' ? "TO_CHAR(appointment_date, 'YYYY-MM')" : groupBy}
        ORDER BY period`,
       [clinic_id]
     );
 
     // Total revenue
-    const [totalRevenue] = await pool.execute(
+    const { rows: totalRevenue } = await pool.query(
       `SELECT COALESCE(SUM(s.price), 0) as total
        FROM appointments a
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? AND ${dateFilter} AND a.status = 'completed'`,
+       WHERE a.clinic_id = $1 AND ${dateFilter} AND a.status = 'completed'`,
       [clinic_id]
     );
 
     // Revenue by service
-    const [revenueByService] = await pool.execute(
+    const { rows: revenueByService } = await pool.query(
       `SELECT s.service_name, COALESCE(SUM(s.price), 0) as revenue, COUNT(*) as count
        FROM appointments a
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = ? AND ${dateFilter} AND a.status = 'completed'
-       GROUP BY s.service_id
+       WHERE a.clinic_id = $1 AND ${dateFilter} AND a.status = 'completed'
+       GROUP BY s.service_id, s.service_name
        ORDER BY revenue DESC`,
       [clinic_id]
     );
@@ -232,7 +232,7 @@ const getPatientAnalytics = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
 
     // New vs Returning patients
-    const [patientTypeStats] = await pool.execute(
+    const { rows: patientTypeStats } = await pool.query(
       `SELECT 
         CASE 
           WHEN total_visits = 1 THEN 'new'
@@ -241,28 +241,28 @@ const getPatientAnalytics = async (req, res) => {
         END as patient_type,
         COUNT(*) as count
        FROM patients
-       WHERE clinic_id = ?
+       WHERE clinic_id = $1
        GROUP BY patient_type`,
       [clinic_id]
     );
 
     // Patients by month
-    const [monthlyPatients] = await pool.execute(
+    const { rows: monthlyPatients } = await pool.query(
       `SELECT 
-        DATE_FORMAT(created_at, '%Y-%m') as month,
+        TO_CHAR(created_at, 'YYYY-MM') as month,
         COUNT(*) as new_patients
        FROM patients
-       WHERE clinic_id = ? AND created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+       WHERE clinic_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '6 months'
        GROUP BY month
        ORDER BY month`,
       [clinic_id]
     );
 
     // Top patients by visits
-    const [topPatients] = await pool.execute(
+    const { rows: topPatients } = await pool.query(
       `SELECT patient_id, name, phone, total_visits, total_spent
        FROM patients
-       WHERE clinic_id = ?
+       WHERE clinic_id = $1
        ORDER BY total_visits DESC
        LIMIT 10`,
       [clinic_id]

@@ -1,29 +1,21 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+require("dotenv").config();
+const { Pool } = require("pg");
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'dentflow',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0
-};
-
-const pool = mysql.createPool(dbConfig);
-
-// Test connection
-const testConnection = async () => {
-  try {
-    const connection = await pool.getConnection();
-    console.log('Database connected successfully');
-    connection.release();
-  } catch (error) {
-    console.error('Database connection failed:', error.message);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
   }
-};
+});
+
+async function testConnection() {
+  try {
+    const client = await pool.connect();
+    console.log("✅ Connected to Neon PostgreSQL");
+    client.release();
+  } catch (error) {
+    console.error("❌ Database connection error:", error);
+  }
+}
 
 module.exports = { pool, testConnection };
