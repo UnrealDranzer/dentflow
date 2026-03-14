@@ -14,10 +14,10 @@ const queueAppointmentReminders = async ({
   appointment_time,
 }) => {
   try {
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT sms_enabled, whatsapp_enabled 
        FROM clinics 
-       WHERE clinic_id = ?`,
+       WHERE clinic_id = $1`,
       [clinic_id]
     );
 
@@ -30,14 +30,12 @@ const queueAppointmentReminders = async ({
       return;
     }
 
-    const sendAtExpression = `STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') - INTERVAL ? MINUTE`;
-
     if (clinic.sms_enabled) {
-      await pool.execute(
+      await pool.query(
         `INSERT INTO notifications 
           (clinic_id, patient_id, appointment_id, type, purpose, content, status, created_at)
          VALUES (
-          ?, ?, ?, 'sms', 'reminder', 'Appointment reminder from your dental clinic', 'pending',
+          $1, $2, $3, 'sms', 'reminder', 'Appointment reminder from your dental clinic', 'pending',
           NOW()
          )`,
         [clinic_id, patient_id, appointment_id]
@@ -45,11 +43,11 @@ const queueAppointmentReminders = async ({
     }
 
     if (clinic.whatsapp_enabled) {
-      await pool.execute(
+      await pool.query(
         `INSERT INTO notifications 
           (clinic_id, patient_id, appointment_id, type, purpose, content, status, created_at)
          VALUES (
-          ?, ?, ?, 'whatsapp', 'reminder', 'Appointment reminder from your dental clinic', 'pending',
+          $1, $2, $3, 'whatsapp', 'reminder', 'Appointment reminder from your dental clinic', 'pending',
           NOW()
          )`,
         [clinic_id, patient_id, appointment_id]

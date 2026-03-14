@@ -26,8 +26,8 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Check if clinic exists and is active
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, subscription_status, is_active FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, subscription_status, is_active FROM clinics WHERE clinic_id = $1',
       [decoded.clinic_id]
     );
 
@@ -101,8 +101,8 @@ const optionalAuth = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, subscription_plan FROM clinics WHERE clinic_id = ? AND is_active = true',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, subscription_plan FROM clinics WHERE clinic_id = $1 AND is_active = true',
       [decoded.clinic_id]
     );
 
