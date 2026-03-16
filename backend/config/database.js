@@ -3,39 +3,50 @@ const fs = require("fs");
 const dotenv = require("dotenv");
 const { Pool } = require("pg");
 
+// Load environment variables from various possible paths
 dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
 dotenv.config({ path: path.resolve(__dirname, "..", "..", ".env") });
+
+if (!process.env.DATABASE_URL) {
+  console.error("❌ CRITICAL ERROR: DATABASE_URL is not defined in environment variables.");
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: false, // Required for Neon
   },
 });
 
+/**
+ * Detailed connection test for production logging
+ */
 async function testConnection() {
   try {
     if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL is not set.");
+      throw new Error("DATABASE_URL environment variable is missing.");
     }
 
     const client = await pool.connect();
-    console.log("✅ Connected to Neon PostgreSQL");
+    const { rows } = await client.query('SELECT NOW() as now');
+    console.log(`✅ Connected to Neon PostgreSQL at: ${rows[0].now}`);
     client.release();
+    return true;
   } catch (error) {
-    console.error("❌ Database connection error:", error.message);
+    console.error("❌ DATABASE CONNECTION ERROR DETAILS:");
+    console.error(`- Message: ${error.message}`);
+    console.error(`- Code: ${error.code || 'N/A'}`);
+    console.error(`- Stack: ${error.stack}`);
+    return false;
   }
 }
 
 /**
- * Auto-initialize the database schema on first startup.
- * Checks if the 'clinics' table exists; if not, runs schema.sql.
- * All statements use CREATE TABLE IF NOT EXISTS and ON CONFLICT DO NOTHING,
- * so this is fully idempotent and safe to run on every boot.
+ * Auto-initialize the database schema.
+ * Idempotent: checks for 'clinics' table before running schema.sql.
  */
 async function initDB() {
   try {
-    // Check if tables already exist
     const { rows } = await pool.query(
       `SELECT EXISTS (
          SELECT FROM information_schema.tables
@@ -44,11 +55,11 @@ async function initDB() {
     );
 
     if (rows[0].table_exists) {
-      console.log("✅ Database tables already exist — skipping init.");
+      console.log("✅ Database schema already exists.");
       return;
     }
 
-    console.log("⏳ First startup: creating database tables...");
+    console.log("⏳ Initializing database schema...");
 
     const schemaPath = path.resolve(__dirname, "schema.sql");
     if (!fs.existsSync(schemaPath)) {
@@ -59,11 +70,10 @@ async function initDB() {
     const sql = fs.readFileSync(schemaPath, "utf8");
     await pool.query(sql);
 
-    console.log("✅ Database schema created and seed data inserted.");
+    console.log("✅ Database schema initialized successfully.");
   } catch (error) {
     console.error("❌ Auto-init DB error:", error.message);
-    // Don't crash the server — let it start so health checks work
-    // and the issue can be debugged via logs
+    console.error(error.stack);
   }
 }
 

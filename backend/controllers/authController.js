@@ -2,8 +2,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
 
-// Generate JWT token
+/**
+ * Generate JWT token
+ * Uses process.env.JWT_SECRET and process.env.JWT_EXPIRES_IN (defaulting to 7d)
+ */
 const generateToken = (clinic) => {
+  if (!process.env.JWT_SECRET) {
+    console.error("❌ JWT_SECRET is not set in environment variables!");
+  }
   return jwt.sign(
     { 
       clinic_id: clinic.clinic_id,
@@ -53,8 +59,6 @@ const register = async (req, res) => {
     );
 
     const clinic = clinics[0];
-
-    // Generate token
     const token = generateToken(clinic);
 
     res.status(201).json({
@@ -76,7 +80,7 @@ const register = async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Registration failed. Please try again.'
+      message: 'Registration failed.'
     });
   }
 };
@@ -101,17 +105,14 @@ const login = async (req, res) => {
 
     const clinic = clinics[0];
 
-    // Check if clinic is active
     if (!clinic.is_active) {
       return res.status(401).json({
         success: false,
-        message: 'Account is deactivated. Please contact support.'
+        message: 'Account is deactivated.'
       });
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, clinic.password_hash);
-
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -125,7 +126,6 @@ const login = async (req, res) => {
       [clinic.clinic_id]
     );
 
-    // Generate token
     const token = generateToken(clinic);
 
     res.json({
@@ -147,7 +147,7 @@ const login = async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Login failed. Please try again.'
+      message: 'Login failed.'
     });
   }
 };
@@ -197,6 +197,7 @@ const updateProfile = async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
+    // Use strictly PostgreSQL positional parameters ($1, $2...)
     if (clinic_name) { updates.push(`clinic_name = $${paramIndex++}`); values.push(clinic_name); }
     if (phone) { updates.push(`phone = $${paramIndex++}`); values.push(phone); }
     if (address) { updates.push(`address = $${paramIndex++}`); values.push(address); }
@@ -253,7 +254,6 @@ const changePassword = async (req, res) => {
   try {
     const { current_password, new_password } = req.body;
 
-    // Get current password hash
     const { rows: clinics } = await pool.query(
       'SELECT password_hash FROM clinics WHERE clinic_id = $1',
       [req.clinic.clinic_id]
@@ -266,9 +266,7 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isPasswordValid = await bcrypt.compare(current_password, clinics[0].password_hash);
-
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -276,11 +274,9 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Hash new password
     const saltRounds = 10;
     const new_password_hash = await bcrypt.hash(new_password, saltRounds);
 
-    // Update password
     await pool.query(
       'UPDATE clinics SET password_hash = $1 WHERE clinic_id = $2',
       [new_password_hash, req.clinic.clinic_id]
@@ -299,7 +295,7 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Logout (client-side token removal)
+// Logout (client-side handles token removal)
 const logout = async (req, res) => {
   res.json({
     success: true,
