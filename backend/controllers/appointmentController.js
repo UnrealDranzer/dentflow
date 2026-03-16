@@ -45,8 +45,9 @@ const getAllAppointments = async (req, res) => {
       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
       WHERE ${where}
       ORDER BY a.appointment_date DESC, a.appointment_time DESC
-      LIMIT ${limitNum} OFFSET ${offsetNum}
+      LIMIT $${idx++} OFFSET $${idx++}
     `;
+    params.push(limitNum, offsetNum);
 
     const [{ rows: appointments }, { rows: countResult }] = await Promise.all([
       pool.query(mainQuery, params),
@@ -497,8 +498,8 @@ const getUpcomingAppointments = async (req, res) => {
          AND a.appointment_date >= CURRENT_DATE
          AND a.status IN ('scheduled','confirmed')
        ORDER BY a.appointment_date, a.appointment_time
-       LIMIT ${limitNum}`,
-      [clinic_id]
+       LIMIT $2`,
+      [clinic_id, limitNum]
     );
     res.json({ success: true, data: { appointments } });
   } catch (error) {

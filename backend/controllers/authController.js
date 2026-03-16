@@ -195,20 +195,21 @@ const updateProfile = async (req, res) => {
 
     const updates = [];
     const values = [];
+    let paramIndex = 1;
 
-    if (clinic_name) { updates.push('clinic_name = ?'); values.push(clinic_name); }
-    if (phone) { updates.push('phone = ?'); values.push(phone); }
-    if (address) { updates.push('address = ?'); values.push(address); }
-    if (city) { updates.push('city = ?'); values.push(city); }
-    if (state) { updates.push('state = ?'); values.push(state); }
-    if (country) { updates.push('country = ?'); values.push(country); }
-    if (postal_code) { updates.push('postal_code = ?'); values.push(postal_code); }
-    if (working_hours_start) { updates.push('working_hours_start = ?'); values.push(working_hours_start); }
-    if (working_hours_end) { updates.push('working_hours_end = ?'); values.push(working_hours_end); }
-    if (working_days) { updates.push('working_days = ?'); values.push(JSON.stringify(working_days)); }
-    if (timezone) { updates.push('timezone = ?'); values.push(timezone); }
-    if (website) { updates.push('website = ?'); values.push(website); }
-    if (google_review_link) { updates.push('google_review_link = ?'); values.push(google_review_link); }
+    if (clinic_name) { updates.push(`clinic_name = $${paramIndex++}`); values.push(clinic_name); }
+    if (phone) { updates.push(`phone = $${paramIndex++}`); values.push(phone); }
+    if (address) { updates.push(`address = $${paramIndex++}`); values.push(address); }
+    if (city) { updates.push(`city = $${paramIndex++}`); values.push(city); }
+    if (state) { updates.push(`state = $${paramIndex++}`); values.push(state); }
+    if (country) { updates.push(`country = $${paramIndex++}`); values.push(country); }
+    if (postal_code) { updates.push(`postal_code = $${paramIndex++}`); values.push(postal_code); }
+    if (working_hours_start) { updates.push(`working_hours_start = $${paramIndex++}`); values.push(working_hours_start); }
+    if (working_hours_end) { updates.push(`working_hours_end = $${paramIndex++}`); values.push(working_hours_end); }
+    if (working_days) { updates.push(`working_days = $${paramIndex++}`); values.push(JSON.stringify(working_days)); }
+    if (timezone) { updates.push(`timezone = $${paramIndex++}`); values.push(timezone); }
+    if (website) { updates.push(`website = $${paramIndex++}`); values.push(website); }
+    if (google_review_link) { updates.push(`google_review_link = $${paramIndex++}`); values.push(google_review_link); }
 
     if (updates.length === 0) {
       return res.status(400).json({
@@ -218,13 +219,10 @@ const updateProfile = async (req, res) => {
     }
 
     values.push(req.clinic.clinic_id);
-
-    // SQL syntax for PostgreSQL updates with positional parameters
-    const postgresUpdates = updates.map((u, i) => u.replace('?', `$${i + 1}`));
-    const finalClinicIdPlaceholder = `$${values.length}`;
+    const clinicIdParam = `$${paramIndex}`;
 
     await pool.query(
-      `UPDATE clinics SET ${postgresUpdates.join(', ')} WHERE clinic_id = ${finalClinicIdPlaceholder}`,
+      `UPDATE clinics SET ${updates.join(', ')} WHERE clinic_id = ${clinicIdParam}`,
       values
     );
 
@@ -301,7 +299,7 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Logout (client-side token removal, but we can track if needed)
+// Logout (client-side token removal)
 const logout = async (req, res) => {
   res.json({
     success: true,

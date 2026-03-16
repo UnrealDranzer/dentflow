@@ -18,9 +18,13 @@ const getAllPatients = async (req, res) => {
       query += ` AND (name ILIKE $2 OR phone ILIKE $3 OR email ILIKE $4)`;
       const term = `%${search}%`;
       params.push(term, term, term);
+      
+      query += ` ORDER BY created_at DESC LIMIT $5 OFFSET $6`;
+      params.push(limit, offset);
+    } else {
+      query += ` ORDER BY created_at DESC LIMIT $2 OFFSET $3`;
+      params.push(limit, offset);
     }
-
-    query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
     const { rows: patients } = await pool.query(query, params);
 

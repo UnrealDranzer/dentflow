@@ -19,6 +19,9 @@ const clinicRoutes      = require("./routes/clinicRoutes");
 
 const app = express();
 
+// Trust proxy for Render deployment (correctly identifies client IP behind proxy)
+app.set("trust proxy", 1);
+
 // Security middleware
 app.use(helmet());
 
