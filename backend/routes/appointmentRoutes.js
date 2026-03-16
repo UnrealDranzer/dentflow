@@ -3,7 +3,7 @@ const router = express.Router();
 
 const appointmentController = require("../controllers/appointmentController");
 const { authenticate } = require("../middleware/auth");
-const { appointmentValidation } = require("../middleware/validation");
+const { appointmentValidation, appointmentUpdateValidation } = require("../middleware/validation");
 
 // Get available slots
 router.get("/available-slots", authenticate, appointmentController.getAvailableSlots);
@@ -24,7 +24,7 @@ router.get("/:id", authenticate, appointmentController.getAppointmentById);
 router.post("/", authenticate, appointmentValidation, appointmentController.createAppointment);
 
 // Update appointment
-router.put("/:id", authenticate, appointmentValidation, appointmentController.updateAppointment);
+router.put("/:id", authenticate, appointmentUpdateValidation, appointmentController.updateAppointment);
 
 // Delete appointment
 router.delete("/:id", authenticate, appointmentController.deleteAppointment);

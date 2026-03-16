@@ -143,33 +143,32 @@ const updateService = async (req, res) => {
       }
     }
 
-    const updates = [];
-    const values = [];
+    const fields = [];
+    const vals   = [];
+    let n = 1;
 
-    if (service_name) { updates.push('service_name = ?'); values.push(service_name); }
-    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
-    if (duration_minutes) { updates.push('duration_minutes = ?'); values.push(duration_minutes); }
-    if (price !== undefined) { updates.push('price = ?'); values.push(price); }
-    if (color_code) { updates.push('color_code = ?'); values.push(color_code); }
-    if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active); }
+    const set = (col, val) => { fields.push(`${col} = $${n++}`); vals.push(val); };
 
-    if (updates.length === 0) {
+    if (service_name       !== undefined) set('service_name',       service_name);
+    if (description        !== undefined) set('description',        description);
+    if (duration_minutes   !== undefined) set('duration_minutes',   duration_minutes);
+    if (price              !== undefined) set('price',              price);
+    if (color_code         !== undefined) set('color_code',         color_code);
+    if (is_active          !== undefined) set('is_active',          is_active);
+
+    if (fields.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No fields to update.'
       });
     }
 
-    values.push(id, clinic_id);
-
-    // Convert ? to $1, $2, etc.
-    const postgresUpdates = updates.map((u, i) => u.replace('?', `$${i + 1}`));
-    const finalIdPlaceholder = `$${values.length - 1}`;
-    const finalClinicIdPlaceholder = `$${values.length}`;
+    set('updated_at', new Date());
+    vals.push(id, clinic_id);
 
     await pool.query(
-      `UPDATE services SET ${postgresUpdates.join(', ')} WHERE service_id = ${finalIdPlaceholder} AND clinic_id = ${finalClinicIdPlaceholder}`,
-      values
+      `UPDATE services SET ${fields.join(', ')} WHERE service_id = $${n++} AND clinic_id = $${n++}`,
+      vals
     );
 
     const { rows: services } = await pool.query(

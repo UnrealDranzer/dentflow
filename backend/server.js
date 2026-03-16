@@ -6,24 +6,29 @@ if (process.env.NODE_ENV !== 'production') {
   require("dotenv").config();
 }
 
-const { testConnection } = require("./config/database");
+const { testConnection, initDB } = require("./config/database");
 
-const authRoutes = require("./routes/authRoutes");
-const patientRoutes = require("./routes/patientRoutes");
+const authRoutes        = require("./routes/authRoutes");
+const patientRoutes     = require("./routes/patientRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
-const serviceRoutes = require("./routes/serviceRoutes");
-const analyticsRoutes = require("./routes/analyticsRoutes");
-const publicRoutes = require("./routes/publicRoutes");
+const serviceRoutes     = require("./routes/serviceRoutes");
+const analyticsRoutes   = require("./routes/analyticsRoutes");
+const publicRoutes      = require("./routes/publicRoutes");
+const doctorRoutes      = require("./routes/doctorRoutes");
+const clinicRoutes      = require("./routes/clinicRoutes");
 
 const app = express();
 
 // Security middleware
 app.use(helmet());
 
-// CORS – keep open in dev, restrict in production via env
+// CORS – restrict in production via CORS_ORIGIN env variable
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "*",
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
@@ -32,7 +37,7 @@ app.use(express.json());
 // Rate limiting for sensitive/public endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -45,34 +50,32 @@ const publicBookingLimiter = rateLimit({
 });
 
 app.get("/", (req, res) => {
-  res.send("Dental SaaS Backend Running");
+  res.json({ success: true, message: "DentFlow API Running", version: "2.0" });
 });
 
-app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/patients", patientRoutes);
+app.use("/api/auth",         authLimiter, authRoutes);
+app.use("/api/patients",     patientRoutes);
 app.use("/api/appointments", appointmentRoutes);
-app.use("/api/services", serviceRoutes);
-app.use("/api/analytics", analyticsRoutes);
-app.use("/api/public", publicBookingLimiter, publicRoutes);
+app.use("/api/services",     serviceRoutes);
+app.use("/api/analytics",    analyticsRoutes);
+app.use("/api/public",       publicBookingLimiter, publicRoutes);
+app.use("/api/doctors",      doctorRoutes);
+app.use("/api/clinics",      clinicRoutes);
 
-app.get("/api/public/ping", (req, res) => {
-  res.json({ success: true, message: "pong" });
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ success: true, message: "OK", timestamp: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 5000;
 
-// Test database connection early
-testConnection();
+// Start server: test DB connection, auto-init schema if needed, then listen
+async function start() {
+  await testConnection();
+  await initDB();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log("--- DEBUG INFO ---");
-  console.log("DATABASE_URL exists?", !!process.env.DATABASE_URL);
-  if (process.env.DATABASE_URL) {
-    // Only print the first few characters to verify it's not empty, don't leak full password in Render logs
-    console.log("DATABASE_URL starts with:", process.env.DATABASE_URL.substring(0, 15) + "...");
-  } else {
-    console.log("WARNING: DATABASE_URL IS UNDEFINED!");
-  }
-  console.log("------------------");
-});
+start();

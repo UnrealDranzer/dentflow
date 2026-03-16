@@ -11,7 +11,7 @@ const getAllPatients = async (req, res) => {
 
     const clinic_id = req.clinic.clinic_id;
 
-    let query = `SELECT * FROM patients WHERE clinic_id = ?`;
+    let query = `SELECT * FROM patients WHERE clinic_id = $1`;
     let params = [clinic_id];
 
     if (search) {

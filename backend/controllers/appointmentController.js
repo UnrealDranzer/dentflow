@@ -8,220 +8,163 @@ const toSafeInt = (value, fallback) => {
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-// Get all appointments for a clinic
+// ─── Get all appointments ────────────────────────────────────────────────────
 const getAllAppointments = async (req, res) => {
   try {
     const {
-      date,
-      start_date,
-      end_date,
-      status,
-      patient_id,
-      page = 1,
-      limit = 50
+      date, start_date, end_date, status,
+      patient_id, doctor_id,
+      page = 1, limit = 50
     } = req.query;
     const clinic_id = req.clinic.clinic_id;
-    const pageNum = clamp(toSafeInt(page, 1), 1, 1000000);
-    const limitNum = clamp(toSafeInt(limit, 50), 1, 200);
+    const pageNum   = clamp(toSafeInt(page,  1),   1, 1000000);
+    const limitNum  = clamp(toSafeInt(limit, 50),  1, 200);
     const offsetNum = (pageNum - 1) * limitNum;
 
-    let query = `
-      SELECT a.*, 
-             p.name as patient_name, p.phone as patient_phone, p.email as patient_email,
-             s.service_name, s.duration_minutes as service_duration, s.color_code
+    let wheres = ['a.clinic_id = $1'];
+    let params = [clinic_id];
+    let idx = 2;
+
+    if (date)                 { wheres.push(`a.appointment_date = $${idx++}`);             params.push(date); }
+    if (start_date && end_date) { wheres.push(`a.appointment_date BETWEEN $${idx++} AND $${idx++}`); params.push(start_date, end_date); }
+    if (status)               { wheres.push(`a.status = $${idx++}`);                       params.push(status); }
+    if (patient_id)           { wheres.push(`a.patient_id = $${idx++}`);                   params.push(patient_id); }
+    if (doctor_id)            { wheres.push(`a.doctor_id = $${idx++}`);                    params.push(doctor_id); }
+
+    const where = wheres.join(' AND ');
+
+    const countQuery = `SELECT COUNT(*) as total FROM appointments a WHERE ${where}`;
+    const mainQuery  = `
+      SELECT a.*,
+             p.name  as patient_name, p.phone as patient_phone, p.email as patient_email,
+             s.service_name, s.duration_minutes as service_duration, s.color_code,
+             d.name  as doctor_name, d.specialization as doctor_specialization, d.color_tag as doctor_color
       FROM appointments a
       JOIN patients p ON a.patient_id = p.patient_id
       JOIN services s ON a.service_id = s.service_id
-      WHERE a.clinic_id = ?
+      LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
+      WHERE ${where}
+      ORDER BY a.appointment_date DESC, a.appointment_time DESC
+      LIMIT ${limitNum} OFFSET ${offsetNum}
     `;
-    let countQuery = 'SELECT COUNT(*) as total FROM appointments WHERE clinic_id = ?';
-    let params = [clinic_id];
-    let countParams = [clinic_id];
 
-    if (date) {
-      query += ' AND a.appointment_date = ?';
-      countQuery += ' AND appointment_date = ?';
-      params.push(date);
-      countParams.push(date);
-    }
-
-    if (start_date && end_date) {
-      query += ' AND a.appointment_date BETWEEN ? AND ?';
-      countQuery += ' AND appointment_date BETWEEN ? AND ?';
-      params.push(start_date, end_date);
-      countParams.push(start_date, end_date);
-    }
-
-    if (status) {
-      query += ' AND a.status = ?';
-      countQuery += ' AND status = ?';
-      params.push(status);
-      countParams.push(status);
-    }
-
-    if (patient_id) {
-      query += ' AND a.patient_id = ?';
-      countQuery += ' AND patient_id = ?';
-      params.push(patient_id);
-      countParams.push(patient_id);
-    }
-
-    // MySQL prepared statements can reject placeholders for LIMIT/OFFSET.
-    query += ` ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
-
-    // Convert ? to $1, $2, etc. for PostgreSQL
-    let paramIndex = 1;
-    const postgresQuery = query.replace(/\?/g, () => `$${paramIndex++}`);
-    paramIndex = 1; // reset for countQuery
-    const postgresCountQuery = countQuery.replace(/\?/g, () => `$${paramIndex++}`);
-
-    const { rows: appointments } = await pool.query(postgresQuery, params);
-    const { rows: countResult } = await pool.query(postgresCountQuery, countParams);
+    const [{ rows: appointments }, { rows: countResult }] = await Promise.all([
+      pool.query(mainQuery, params),
+      pool.query(countQuery, params)
+    ]);
 
     res.json({
       success: true,
       data: {
         appointments,
         pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: countResult[0].total,
-          totalPages: Math.ceil(countResult[0].total / limitNum)
+          page: pageNum, limit: limitNum,
+          total: parseInt(countResult[0].total),
+          totalPages: Math.ceil(parseInt(countResult[0].total) / limitNum)
         }
       }
     });
   } catch (error) {
     console.error('Get appointments error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch appointments.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch appointments.' });
   }
 };
 
-// Get single appointment
+// ─── Get single appointment ──────────────────────────────────────────────────
 const getAppointmentById = async (req, res) => {
   try {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
     const { rows: appointments } = await pool.query(
-      `SELECT a.*, 
+      `SELECT a.*,
               p.name as patient_name, p.phone as patient_phone, p.email as patient_email,
               p.date_of_birth, p.gender, p.address, p.medical_history, p.allergies,
-              s.service_name, s.description as service_description, s.duration_minutes as service_duration, 
-              s.price as service_price, s.color_code
+              s.service_name, s.description as service_description,
+              s.duration_minutes as service_duration, s.price as service_price, s.color_code,
+              d.name as doctor_name, d.specialization as doctor_specialization, d.color_tag as doctor_color
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
+       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
        WHERE a.appointment_id = $1 AND a.clinic_id = $2`,
       [id, clinic_id]
     );
 
     if (appointments.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appointment not found.'
-      });
+      return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
 
     const { rows: history } = await pool.query(
-      `SELECT * FROM appointment_history 
-       WHERE appointment_id = $1 
-       ORDER BY performed_at DESC`,
+      'SELECT * FROM appointment_history WHERE appointment_id = $1 ORDER BY performed_at DESC',
       [id]
     );
 
-    res.json({
-      success: true,
-      data: {
-        appointment: appointments[0],
-        history
-      }
-    });
+    res.json({ success: true, data: { appointment: appointments[0], history } });
   } catch (error) {
     console.error('Get appointment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch appointment.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch appointment.' });
   }
 };
 
-// Create new appointment
+// ─── Create appointment ──────────────────────────────────────────────────────
 const createAppointment = async (req, res) => {
   try {
-    const { patient_id, service_id, appointment_date, appointment_time, notes } = req.body;
+    const { patient_id, service_id, doctor_id, appointment_date, appointment_time, notes } = req.body;
     const clinic_id = req.clinic.clinic_id;
 
     const { rows: services } = await pool.query(
-      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
+      'SELECT duration_minutes, price FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
       [service_id, clinic_id]
     );
-
     if (services.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Service not found or inactive.'
-      });
+      return res.status(404).json({ success: false, message: 'Service not found or inactive.' });
     }
 
-    const duration_minutes = services[0].duration_minutes;
+    const { duration_minutes, price } = services[0];
 
+    // check slot availability (considering the doctor)
     const isAvailable = await checkTimeSlotAvailability(
-      clinic_id, 
-      appointment_date, 
-      appointment_time, 
-      duration_minutes
+      clinic_id, appointment_date, appointment_time, duration_minutes, null, doctor_id || null
     );
-
     if (!isAvailable) {
-      return res.status(409).json({
-        success: false,
-        message: 'This time slot is not available. Please select a different time.'
-      });
+      return res.status(409).json({ success: false, message: 'This time slot is not available. Please select a different time.' });
     }
 
     const { rows: result } = await pool.query(
-      `INSERT INTO appointments (clinic_id, patient_id, service_id, appointment_date, appointment_time, 
-        duration_minutes, status, notes, source)
-       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, 'dashboard')
+      `INSERT INTO appointments
+         (clinic_id, patient_id, service_id, doctor_id, appointment_date, appointment_time,
+          duration_minutes, price, status, notes, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',$9,'dashboard')
        RETURNING appointment_id`,
-      [clinic_id, patient_id, service_id, appointment_date, appointment_time, duration_minutes, notes]
+      [clinic_id, patient_id, service_id, doctor_id || null, appointment_date, appointment_time, duration_minutes, price, notes || null]
     );
 
     const appointment_id = result[0].appointment_id;
 
     await pool.query(
       `INSERT INTO appointment_history (appointment_id, action, new_value, performed_by, notes)
-       VALUES ($1, 'created', $2, $3, 'Appointment created via dashboard')`,
+       VALUES ($1,'created',$2,$3,'Appointment created via dashboard')`,
       [appointment_id, JSON.stringify({ status: 'scheduled', date: appointment_date, time: appointment_time }), clinic_id]
     );
 
     await pool.query(
-      `UPDATE patients 
-       SET last_visit = $1, total_visits = total_visits + 1
-       WHERE patient_id = $2 AND clinic_id = $3`,
+      'UPDATE patients SET last_visit = $1, total_visits = total_visits + 1 WHERE patient_id = $2 AND clinic_id = $3',
       [appointment_date, patient_id, clinic_id]
     );
 
     const { rows: appointments } = await pool.query(
-      `SELECT a.*, p.name as patient_name, s.service_name
+      `SELECT a.*, p.name as patient_name, s.service_name, d.name as doctor_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
+       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
        WHERE a.appointment_id = $1`,
       [appointment_id]
     );
 
-    // Queue reminder notifications (SMS / WhatsApp) if enabled
-    await queueAppointmentReminders({
-      clinic_id,
-      patient_id,
-      appointment_id,
-      appointment_date,
-      appointment_time,
-    });
+    // Queue reminder notifications
+    await queueAppointmentReminders({ clinic_id, patient_id, appointment_id, appointment_date, appointment_time });
 
     res.status(201).json({
       success: true,
@@ -230,438 +173,311 @@ const createAppointment = async (req, res) => {
     });
   } catch (error) {
     console.error('Create appointment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create appointment.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to create appointment.' });
   }
 };
 
-// Update appointment (UNCHANGED)
+// ─── Update appointment ──────────────────────────────────────────────────────
 const updateAppointment = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { appointment_date, appointment_time, status, notes, service_id } = req.body;
+    const id = toSafeInt(req.params.id, null);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid appointment ID' });
+
+    const { appointment_date, appointment_time, status, notes, service_id, doctor_id } = req.body;
     const clinic_id = req.clinic.clinic_id;
 
-    const { rows: currentAppointments } = await pool.query(
+    const { rows: currentRows } = await pool.query(
       'SELECT * FROM appointments WHERE appointment_id = $1 AND clinic_id = $2',
       [id, clinic_id]
     );
-
-    if (currentAppointments.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appointment not found.'
-      });
+    if (currentRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
+    const cur = currentRows[0];
 
-    const currentAppointment = currentAppointments[0];
+    // Format DB date to YYYY-MM-DD for reliable comparison
+    const curDateStr = cur.appointment_date instanceof Date 
+      ? cur.appointment_date.toISOString().split('T')[0] 
+      : String(cur.appointment_date).split('T')[0];
 
-    if ((appointment_date && appointment_date !== currentAppointment.appointment_date) ||
-        (appointment_time && appointment_time !== currentAppointment.appointment_time)) {
-      
-      const newDate = appointment_date || currentAppointment.appointment_date;
-      const newTime = appointment_time || currentAppointment.appointment_time;
-      const duration = currentAppointment.duration_minutes;
+    // If date/time changed, re-check availability
+    const newDate = appointment_date || curDateStr;
+    const newTime = appointment_time || cur.appointment_time;
+    const newDoctorId = doctor_id !== undefined ? (doctor_id || null) : cur.doctor_id;
 
+    if ((appointment_date && appointment_date !== curDateStr) ||
+        (appointment_time && appointment_time !== String(cur.appointment_time)) ||
+        (doctor_id !== undefined && doctor_id !== cur.doctor_id)) {
       const isAvailable = await checkTimeSlotAvailability(
-        clinic_id, 
-        newDate, 
-        newTime, 
-        duration,
-        id
+        clinic_id, newDate, newTime, cur.duration_minutes, id, newDoctorId
       );
-
       if (!isAvailable) {
-        return res.status(409).json({
-          success: false,
-          message: 'This time slot is not available. Please select a different time.'
-        });
+        return res.status(409).json({ success: false, message: 'This time slot is not available.' });
       }
     }
 
-    const updates = [];
-    const values = [];
-    const historyLogs = [];
+    const fields = [];
+    const vals   = [];
+    const history = [];
+    let n = 1;
 
-    if (appointment_date) {
-      updates.push('appointment_date = ?');
-      values.push(appointment_date);
-      historyLogs.push({
-        action: 'date_changed',
-        old: currentAppointment.appointment_date,
-        new: appointment_date
-      });
-    }
+    const set = (col, val, histAction, oldVal) => {
+      fields.push(`${col} = $${n++}`);
+      vals.push(val);
+      if (histAction) history.push({ action: histAction, old: String(oldVal), new: String(val) });
+    };
 
-    if (appointment_time) {
-      updates.push('appointment_time = ?');
-      values.push(appointment_time);
-      historyLogs.push({
-        action: 'time_changed',
-        old: currentAppointment.appointment_time,
-        new: appointment_time
-      });
-    }
+    if (appointment_date !== undefined) set('appointment_date', appointment_date, 'date_changed',   cur.appointment_date);
+    if (appointment_time !== undefined) set('appointment_time', appointment_time, 'time_changed',   cur.appointment_time);
+    if (status          !== undefined) set('status',           status,           'status_changed', cur.status);
+    if (notes           !== undefined) set('notes',            notes,            null,             null);
+    if (doctor_id       !== undefined) set('doctor_id',        doctor_id || null,'doctor_changed', cur.doctor_id);
 
-    if (status) {
-      updates.push('status = ?');
-      values.push(status);
-      historyLogs.push({
-        action: 'status_changed',
-        old: currentAppointment.status,
-        new: status
-      });
-    }
-
-    if (notes !== undefined) {
-      updates.push('notes = ?');
-      values.push(notes);
-    }
-
-    if (service_id) {
-      const { rows: services } = await pool.query(
-        'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2',
+    if (service_id !== undefined) {
+      const { rows: svc } = await pool.query(
+        'SELECT duration_minutes, price FROM services WHERE service_id = $1 AND clinic_id = $2',
         [service_id, clinic_id]
       );
-
-      if (services.length > 0) {
-        updates.push('service_id = ?');
-        values.push(service_id);
-        updates.push('duration_minutes = ?');
-        values.push(services[0].duration_minutes);
+      if (svc.length > 0) {
+        set('service_id',       service_id,              'service_changed',  cur.service_id);
+        set('duration_minutes', svc[0].duration_minutes, null, null);
+        set('price',            svc[0].price,            null, null);
       }
     }
 
-    if (updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No fields to update.'
-      });
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update.' });
     }
 
-    values.push(id, clinic_id);
+    set('updated_at', new Date(), null, null);
+    vals.push(id, clinic_id);
 
-    // SQL syntax for PostgreSQL updates with positional parameters
-    const postgresUpdates = updates.map((u, i) => u.replace('?', `$${i + 1}`));
-    const finalIdPlaceholder = `$${values.length - 1}`;
-    const finalClinicIdPlaceholder = `$${values.length}`;
+    const updateQuery = `UPDATE appointments SET ${fields.join(', ')} WHERE appointment_id = $${n++} AND clinic_id = $${n++} RETURNING *`;
+    const { rows: updatedRows, rowCount } = await pool.query(updateQuery, vals);
 
-    await pool.query(
-      `UPDATE appointments SET ${postgresUpdates.join(', ')} WHERE appointment_id = ${finalIdPlaceholder} AND clinic_id = ${finalClinicIdPlaceholder}`,
-      values
-    );
-
-    for (const log of historyLogs) {
-      await pool.query(
-        `INSERT INTO appointment_history (appointment_id, action, old_value, new_value, performed_by, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, log.action, log.old, log.new, clinic_id, 'Updated via dashboard']
-      );
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Appointment not found or not updated.' });
     }
 
-    const { rows: appointments } = await pool.query(
-      `SELECT a.*, p.name as patient_name, s.service_name
+    const updatedAppt = updatedRows[0];
+
+    // Insert history
+    for (const log of history) {
+      try {
+        await pool.query(
+          `INSERT INTO appointment_history (appointment_id, action, old_value, new_value, performed_by, notes)
+           VALUES ($1,$2,$3,$4,$5,'Updated via dashboard')`,
+          [id, log.action, log.old, log.new, clinic_id]
+        );
+      } catch (err) {
+        console.error('History log error:', err);
+      }
+    }
+
+    // Return the full appointment data consistent with getById
+    const { rows: fullData } = await pool.query(
+      `SELECT a.*,
+              p.name as patient_name, p.phone as patient_phone, p.email as patient_email,
+              p.date_of_birth, p.gender, p.address, p.medical_history, p.allergies,
+              s.service_name, s.description as service_description,
+              s.duration_minutes as service_duration, s.price as service_price, s.color_code,
+              d.name as doctor_name, d.specialization as doctor_specialization, d.color_tag as doctor_color
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
+       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
        WHERE a.appointment_id = $1`,
       [id]
     );
 
-    res.json({
-      success: true,
-      message: 'Appointment updated successfully',
-      data: { appointment: appointments[0] }
+    res.json({ 
+      success: true, 
+      message: 'Appointment updated successfully', 
+      data: { appointment: fullData[0] } 
     });
   } catch (error) {
     console.error('Update appointment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update appointment.'
-    });
+    res.status(500).json({ success: false, message: error.message || 'Failed to update appointment.' });
   }
 };
 
-// Delete appointment (UNCHANGED)
+// ─── Delete / Cancel appointment ─────────────────────────────────────────────
 const deleteAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
     const result = await pool.query(
-      "UPDATE appointments SET status = 'cancelled' WHERE appointment_id = $1 AND clinic_id = $2",
+      "UPDATE appointments SET status = 'cancelled', updated_at = NOW() WHERE appointment_id = $1 AND clinic_id = $2",
       [id, clinic_id]
     );
-
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appointment not found.'
-      });
+      return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
 
     await pool.query(
-      `INSERT INTO appointment_history (appointment_id, action, new_value, performed_by, notes)
-       VALUES ($1, 'cancelled', 'cancelled', $2, 'Appointment cancelled')`,
+      "INSERT INTO appointment_history (appointment_id, action, new_value, performed_by, notes) VALUES ($1,'cancelled','cancelled',$2,'Appointment cancelled')",
       [id, clinic_id]
     );
 
-    res.json({
-      success: true,
-      message: 'Appointment cancelled successfully'
-    });
+    res.json({ success: true, message: 'Appointment cancelled successfully' });
   } catch (error) {
     console.error('Delete appointment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to cancel appointment.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to cancel appointment.' });
   }
 };
 
-// Get available time slots (FIXED)
+// ─── Available time slots (clinic-level, optional doctor) ───────────────────
 const getAvailableSlots = async (req, res) => {
   try {
-    const date = req.query.date;
-    const service_id = req.query.service_id || req.query.serviceId;
+    const { date, service_id, doctor_id } = req.query;
     const clinic_id = req.clinic.clinic_id;
 
     if (!date || !service_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'Date and service_id are required.'
-      });
+      return res.status(400).json({ success: false, message: 'date and service_id are required.' });
     }
 
-    const { rows: clinics } = await pool.query(
-      'SELECT working_hours_start, working_hours_end, working_days FROM clinics WHERE clinic_id = $1',
+    // If doctor specified, delegate to doctor slot logic
+    if (doctor_id) {
+      const { rows: avRows } = await pool.query(
+        `SELECT da.*, d.is_active
+         FROM doctors d
+         LEFT JOIN doctor_availability da ON da.doctor_id = d.doctor_id
+         WHERE d.doctor_id = $1 AND d.clinic_id = $2`,
+        [doctor_id, clinic_id]
+      );
+
+      if (avRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Doctor not found.' });
+      }
+
+      const avail = avRows[0];
+
+      if (!avail.is_active) {
+        return res.json({ success: true, data: { slots: [], message: 'Doctor is not active.' } });
+      }
+
+      // Check leave
+      const { rows: leaves } = await pool.query(
+        'SELECT id FROM doctor_leaves WHERE doctor_id = $1 AND leave_date = $2',
+        [doctor_id, date]
+      );
+      if (leaves.length > 0) {
+        return res.json({ success: true, data: { slots: [], message: 'Doctor is on leave on this day.' } });
+      }
+
+      // Check working day for doctor
+      const workingDays = parseWorkingDays(avail.working_days);
+      const [yr, mo, dy] = date.split('-').map(Number);
+      const dow = new Date(yr, mo - 1, dy).getDay();
+
+      if (!workingDays.includes(dow)) {
+        return res.json({ success: true, data: { slots: [], message: 'Doctor is not available on this day.' } });
+      }
+
+      const { rows: svc } = await pool.query(
+        'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
+        [service_id, clinic_id]
+      );
+      if (svc.length === 0) {
+        return res.status(404).json({ success: false, message: 'Service not found.' });
+      }
+
+      const { rows: booked } = await pool.query(
+        `SELECT appointment_time, duration_minutes FROM appointments
+         WHERE doctor_id = $1 AND appointment_date = $2 AND status IN ('scheduled','confirmed')`,
+        [doctor_id, date]
+      );
+
+      const slots = generateTimeSlots(
+        avail.start_time, avail.end_time,
+        svc[0].duration_minutes, booked, date, 'Asia/Kolkata',
+        avail.break_start, avail.break_end, avail.slot_interval || 30
+      );
+
+      return res.json({ success: true, data: { date, service_duration: svc[0].duration_minutes, slots } });
+    }
+
+    // Clinic-level slots (no specific doctor)
+    const { rows: clinicRows } = await pool.query(
+      'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE clinic_id = $1',
       [clinic_id]
     );
-
-    if (clinics.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Clinic not found.'
-      });
+    if (clinicRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Clinic not found.' });
     }
 
-    const clinic = clinics[0];
-    const workingStart = clinic.working_hours_start || '09:00:00';
-    const workingEnd = clinic.working_hours_end || '18:00:00';
-
-    // Normalize working_days to an array of numbers (0=Sun, 1=Mon, ... 6=Sat)
-    let workingDays;
-    try {
-      workingDays = JSON.parse(clinic.working_days);
-      if (!Array.isArray(workingDays)) workingDays = clinic.working_days.split(',').map((d) => parseInt(d.trim(), 10)).filter((n) => !Number.isNaN(n));
-      else workingDays = workingDays.map((d) => parseInt(d, 10)).filter((n) => !Number.isNaN(n));
-    } catch (err) {
-      workingDays = (typeof clinic.working_days === 'string' ? clinic.working_days.split(',') : []).map((d) => parseInt(String(d).trim(), 10)).filter((n) => !Number.isNaN(n));
-    }
-    if (workingDays.length === 0) {
-      workingDays = [1, 2, 3, 4, 5, 6];
-    }
-
-    // Check if clinic works on the selected day
+    const clinic = clinicRows[0];
+    const workingDays = parseWorkingDays(clinic.working_days);
     const [year, month, day] = date.split('-').map(Number);
     const selectedDay = new Date(year, month - 1, day).getDay();
+
     if (!workingDays.includes(selectedDay)) {
-      return res.json({
-        success: true,
-        data: {
-          date,
-          slots: [],
-          message: 'Clinic closed on this day'
-        }
-      });
+      return res.json({ success: true, data: { date, slots: [], message: 'Clinic is closed on this day.' } });
     }
 
-    const { rows: services } = await pool.query(
-      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2',
+    const { rows: svc } = await pool.query(
+      'SELECT duration_minutes FROM services WHERE service_id = $1 AND clinic_id = $2 AND is_active = true',
       [service_id, clinic_id]
     );
-
-    if (services.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Service not found.'
-      });
+    if (svc.length === 0) {
+      return res.status(404).json({ success: false, message: 'Service not found.' });
     }
 
-    const serviceDuration = services[0].duration_minutes;
-
-    const { rows: existingAppointments } = await pool.query(
-      `SELECT appointment_time, duration_minutes 
-       FROM appointments 
-       WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
+    const { rows: booked } = await pool.query(
+      `SELECT appointment_time, duration_minutes FROM appointments
+       WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled','confirmed')
        ORDER BY appointment_time`,
       [clinic_id, date]
     );
 
     const slots = generateTimeSlots(
-      workingStart,
-      workingEnd,
-      serviceDuration,
-      existingAppointments,
-      date,
-      clinic.timezone || 'Asia/Kolkata'
+      clinic.working_hours_start, clinic.working_hours_end,
+      svc[0].duration_minutes, booked, date,
+      clinic.timezone || 'Asia/Kolkata',
+      null, null, clinic.slot_interval_minutes || 30
     );
 
     res.json({
       success: true,
       data: {
         date,
-        service_duration: serviceDuration,
-        working_hours: {
-          start: clinic.working_hours_start,
-          end: clinic.working_hours_end
-        },
+        service_duration: svc[0].duration_minutes,
+        working_hours: { start: clinic.working_hours_start, end: clinic.working_hours_end },
         slots
       }
     });
-
   } catch (error) {
     console.error('Get available slots error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch available slots.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch available slots.' });
   }
 };
 
-// Helper function to check time slot availability (UNCHANGED)
-const checkTimeSlotAvailability = async (clinic_id, date, time, duration, excludeAppointmentId = null) => {
-  const { rows: existingAppointments } = await pool.query(
-    `SELECT appointment_time, duration_minutes 
-     FROM appointments 
-     WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled', 'confirmed')
-     ${excludeAppointmentId ? 'AND appointment_id != $3' : ''}
-     ORDER BY appointment_time`,
-    excludeAppointmentId ? [clinic_id, date, excludeAppointmentId] : [clinic_id, date]
-  );
-
-  const requestedStart = timeToMinutes(time);
-  const requestedEnd = requestedStart + duration;
-
-  for (const appt of existingAppointments) {
-    const apptStart = timeToMinutes(appt.appointment_time);
-    const apptEnd = apptStart + appt.duration_minutes;
-
-    if (requestedStart < apptEnd && requestedEnd > apptStart) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
-// Helper function to generate time slots (FIXED)
-const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existingAppointments, date, timezone = 'Asia/Kolkata') => {
-  const slots = [];
-  const startMinutes = timeToMinutes(workingStart);
-  const endMinutes = timeToMinutes(workingEnd);
-
-  // Timezone-aware "today" and "current time" check
-  const now = new Date();
-  let localDate, localHours, localMinutes;
-
-  try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-    const parts = formatter.formatToParts(now);
-    localDate = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-    localHours = parseInt(parts.find(p => p.type === 'hour').value, 10);
-    localMinutes = parseInt(parts.find(p => p.type === 'minute').value, 10);
-  } catch (e) {
-    // Fallback if timezone is invalid
-    localDate = now.toISOString().split('T')[0];
-    localHours = now.getHours();
-    localMinutes = now.getMinutes();
-  }
-
-  const isToday = date === localDate;
-  const currentMinutes = isToday ? (localHours * 60 + localMinutes) : 0;
-
-  for (let time = startMinutes; time + serviceDuration <= endMinutes; time += serviceDuration) {
-    const slotTime = minutesToTime(time);
-    const slotEnd = time + serviceDuration;
-
-    if (isToday && time <= currentMinutes) {
-      continue;
-    }
-
-    let isAvailable = true;
-    for (const appt of existingAppointments) {
-      const apptStart = timeToMinutes(appt.appointment_time);
-      const apptEnd = apptStart + appt.duration_minutes;
-
-      if (time < apptEnd && slotEnd > apptStart) {
-        isAvailable = false;
-        break;
-      }
-    }
-
-    slots.push({
-      time: slotTime,
-      end_time: minutesToTime(slotEnd),
-      available: isAvailable
-    });
-  }
-
-  return slots;
-};
-
-const timeToMinutes = (timeStr) => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-};
-
-const minutesToTime = (minutes) => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-};
-
-// Get today's appointments
+// ─── Today's appointments ────────────────────────────────────────────────────
 const getTodayAppointments = async (req, res) => {
   try {
     const clinic_id = req.clinic.clinic_id;
-
     const { rows: appointments } = await pool.query(
-      `SELECT a.*, 
+      `SELECT a.*,
               p.name as patient_name, p.phone as patient_phone,
-              s.service_name, s.color_code
+              s.service_name, s.color_code,
+              d.name as doctor_name, d.color_tag as doctor_color
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
+       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
        WHERE a.clinic_id = $1 AND a.appointment_date = CURRENT_DATE
        ORDER BY a.appointment_time`,
       [clinic_id]
     );
-
-    res.json({
-      success: true,
-      data: { appointments }
-    });
+    res.json({ success: true, data: { appointments } });
   } catch (error) {
     console.error('Get today appointments error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch today\'s appointments.'
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch today's appointments." });
   }
 };
 
-// Get upcoming appointments
+// ─── Upcoming appointments ───────────────────────────────────────────────────
 const getUpcomingAppointments = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
@@ -669,31 +485,113 @@ const getUpcomingAppointments = async (req, res) => {
     const limitNum = clamp(toSafeInt(limit, 10), 1, 200);
 
     const { rows: appointments } = await pool.query(
-      `SELECT a.*, 
+      `SELECT a.*,
               p.name as patient_name, p.phone as patient_phone,
-              s.service_name, s.color_code
+              s.service_name, s.color_code,
+              d.name as doctor_name
        FROM appointments a
        JOIN patients p ON a.patient_id = p.patient_id
        JOIN services s ON a.service_id = s.service_id
-       WHERE a.clinic_id = $1 
+       LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
+       WHERE a.clinic_id = $1
          AND a.appointment_date >= CURRENT_DATE
-         AND a.status IN ('scheduled', 'confirmed')
+         AND a.status IN ('scheduled','confirmed')
        ORDER BY a.appointment_date, a.appointment_time
        LIMIT ${limitNum}`,
       [clinic_id]
     );
-
-    res.json({
-      success: true,
-      data: { appointments }
-    });
+    res.json({ success: true, data: { appointments } });
   } catch (error) {
     console.error('Get upcoming appointments error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch upcoming appointments.'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch upcoming appointments.' });
   }
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const parseWorkingDays = (val) => {
+  const fallback = [1,2,3,4,5,6];
+  if (!val) return fallback;
+  try {
+    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+    if (Array.isArray(parsed)) return parsed.map(Number).filter(Number.isFinite);
+  } catch (_) {}
+  return fallback;
+};
+
+const checkTimeSlotAvailability = async (clinic_id, date, time, duration, excludeId = null, doctor_id = null) => {
+  let q = `SELECT appointment_time, duration_minutes FROM appointments
+           WHERE clinic_id = $1 AND appointment_date = $2 AND status IN ('scheduled','confirmed')`;
+  let p = [clinic_id, date];
+  let idx = 3;
+
+  if (doctor_id) { q += ` AND doctor_id = $${idx++}`; p.push(doctor_id); }
+  if (excludeId) { q += ` AND appointment_id != $${idx++}`; p.push(excludeId); }
+
+  const { rows } = await pool.query(q, p);
+  const reqStart = timeToMinutes(time);
+  const reqEnd   = reqStart + duration;
+
+  for (const a of rows) {
+    const as = timeToMinutes(a.appointment_time);
+    const ae = as + a.duration_minutes;
+    if (reqStart < ae && reqEnd > as) return false;
+  }
+  return true;
+};
+
+const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, date, timezone = 'Asia/Kolkata', breakStart = null, breakEnd = null, interval = 30) => {
+  const slots     = [];
+  const startMin  = timeToMinutes(workingStart);
+  const endMin    = timeToMinutes(workingEnd);
+  const brkStart  = breakStart ? timeToMinutes(breakStart) : null;
+  const brkEnd    = breakEnd   ? timeToMinutes(breakEnd)   : null;
+
+  const now = new Date();
+  let localDate, nowMinutes;
+  try {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', hour12: false
+    });
+    const parts = fmt.formatToParts(now);
+    const get = (t) => parts.find(p => p.type === t).value;
+    localDate   = `${get('year')}-${get('month')}-${get('day')}`;
+    nowMinutes  = parseInt(get('hour')) * 60 + parseInt(get('minute'));
+  } catch (_) {
+    localDate  = now.toISOString().split('T')[0];
+    nowMinutes = now.getHours() * 60 + now.getMinutes();
+  }
+  const isToday = date === localDate;
+
+  for (let t = startMin; t + serviceDuration <= endMin; t += interval) {
+    // skip break window
+    if (brkStart !== null && brkEnd !== null && t < brkEnd && t + serviceDuration > brkStart) continue;
+    // skip past slots on today
+    if (isToday && t <= nowMinutes) continue;
+
+    let available = true;
+    for (const a of existing) {
+      const as = timeToMinutes(a.appointment_time);
+      const ae = as + a.duration_minutes;
+      if (t < ae && t + serviceDuration > as) { available = false; break; }
+    }
+    slots.push({ time: minutesToTime(t), end_time: minutesToTime(t + serviceDuration), available });
+  }
+  return slots;
+};
+
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const str = typeof t === 'string' ? t : String(t);
+  const [h, m] = str.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const minutesToTime = (m) => {
+  const h  = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
 };
 
 module.exports = {

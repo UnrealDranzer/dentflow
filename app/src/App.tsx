@@ -20,6 +20,7 @@ import NewAppointment from '@/pages/appointments/NewAppointment';
 import Analytics from '@/pages/analytics/Analytics';
 import Settings from '@/pages/settings/Settings';
 import PublicBooking from '@/pages/public/PublicBooking';
+import Doctors from '@/pages/doctors/Doctors';
 
 // Components
 import { Toaster } from '@/components/ui/sonner';
@@ -95,7 +96,7 @@ function App() {
     <Router>
       <Routes>
         {/* Public Booking Route */}
-        <Route path="/book/:clinicId" element={<PublicBooking />} />
+        <Route path="/book/:clinicSlug" element={<PublicBooking />} />
         
         {/* Auth Routes */}
         <Route element={<AuthLayout />}>
@@ -128,6 +129,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientDetail />} />
+          <Route path="/doctors" element={<Doctors />} />
           <Route path="/services" element={<Services />} />
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/appointments/new" element={<NewAppointment />} />

@@ -58,15 +58,15 @@ const patientValidation = [
     .notEmpty().withMessage('Phone number is required')
     .matches(/^[+]?[\d\s-()]+$/).withMessage('Invalid phone number format'),
   body('email')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isEmail().withMessage('Invalid email format')
     .normalizeEmail(),
   body('date_of_birth')
-    .optional()
+    .optional({ checkFalsy: true })
     .isISO8601().withMessage('Invalid date format'),
   body('gender')
-    .optional()
+    .optional({ checkFalsy: true })
     .isIn(['male', 'female', 'other']).withMessage('Gender must be male, female, or other'),
   handleValidationErrors
 ];
@@ -109,6 +109,35 @@ const appointmentValidation = [
   handleValidationErrors
 ];
 
+const appointmentUpdateValidation = [
+  body('patient_id').optional().isInt().withMessage('Invalid patient ID'),
+  body('service_id').optional().isInt().withMessage('Invalid service ID'),
+  body('doctor_id').optional({ checkFalsy: true }).isInt().withMessage('Invalid doctor ID'),
+  body('appointment_date').optional().isISO8601().withMessage('Invalid date format'),
+  body('appointment_time').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid time format (HH:MM)'),
+  body('status').optional().isIn(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show', 'no-show']).withMessage('Invalid status'),
+  body('notes').optional().trim(),
+  handleValidationErrors
+];
+
+// Doctor validations
+const doctorValidation = [
+  body('name').trim().notEmpty().withMessage('Doctor name is required'),
+  body('specialization').optional().trim(),
+  body('phone').optional().trim(),
+  body('email').optional({ checkFalsy: true }).trim().isEmail().withMessage('Invalid email format'),
+  body('experience_years').optional({ checkFalsy: true }).isInt({ min: 0 }),
+  handleValidationErrors
+];
+
+// Clinic validations
+const clinicUpdateValidation = [
+  body('clinic_name').optional().trim().notEmpty(),
+  body('phone').optional().trim(),
+  body('timezone').optional().trim(),
+  handleValidationErrors
+];
+
 // Public booking validation
 const publicBookingValidation = [
   body('clinic_id')
@@ -144,6 +173,9 @@ module.exports = {
   loginValidation,
   patientValidation,
   serviceValidation,
+  doctorValidation,
   appointmentValidation,
-  publicBookingValidation
+  appointmentUpdateValidation,
+  publicBookingValidation,
+  clinicUpdateValidation
 };
