@@ -8,13 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin } from 'lucide-react';
+import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Clinic {
@@ -27,62 +23,52 @@ interface Clinic {
   city?: string;
   state?: string;
 }
-
 interface Service {
-  service_id: number;
-  service_name: string;
-  description?: string;
-  duration_minutes: number;
-  price: number;
+  service_id: number; service_name: string; description?: string;
+  duration_minutes: number; price: number;
 }
-
-interface TimeSlot {
-  time: string;
-  available: boolean;
+interface Doctor {
+  doctor_id: number; name: string; specialization?: string;
 }
+interface TimeSlot { time: string; available: boolean; }
 
 const PublicBooking = () => {
-  const { clinicId } = useParams<{ clinicId: string }>();
-  const [clinic, setClinic] = useState<Clinic | null>(null);
+  const { clinicSlug } = useParams<{ clinicSlug: string }>();
+  const [clinic,   setClinic]   = useState<Clinic | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [doctors,  setDoctors]  = useState<Doctor[]>([]);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading,      setIsLoading]      = useState(true);
+  const [isSubmitting,   setIsSubmitting]   = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isSuccess,      setIsSuccess]      = useState(false);
 
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    service_id: '',
-    appointment_date: '',
-    appointment_time: '',
-    notes: ''
+    name: '', phone: '', email: '',
+    service_id: '', doctor_id: '',
+    appointment_date: '', appointment_time: '', notes: ''
   });
 
   useEffect(() => {
-    if (clinicId) {
-      fetchClinicData();
-    }
-  }, [clinicId]);
+    if (clinicSlug) fetchClinicData();
+  }, [clinicSlug]);
 
   useEffect(() => {
-    if (formData.service_id && formData.appointment_date && clinicId) {
+    if (formData.service_id && formData.appointment_date && clinic) {
       fetchAvailableSlots();
     }
-  }, [formData.service_id, formData.appointment_date, clinicId]);
+  }, [formData.service_id, formData.appointment_date, formData.doctor_id, clinic]);
 
   const fetchClinicData = async () => {
     try {
       setIsLoading(true);
-      const response = await publicAPI.getClinicInfo(Number(clinicId));
+      const response = await publicAPI.getClinicInfo(clinicSlug!);
       if (response.data.success) {
         setClinic(response.data.data.clinic);
         setServices(response.data.data.services);
+        setDoctors(response.data.data.doctors || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch clinic:', error);
+    } catch {
       toast.error('Failed to load clinic information');
     } finally {
       setIsLoading(false);
@@ -90,21 +76,22 @@ const PublicBooking = () => {
   };
 
   const fetchAvailableSlots = async () => {
+    if (!clinic) return;
     try {
       setIsLoadingSlots(true);
       setFormData(prev => ({ ...prev, appointment_time: '' }));
-
-      const response = await publicAPI.getAvailableSlots({
-        clinic_id: Number(clinicId),
-        date: formData.appointment_date,
-        service_id: parseInt(formData.service_id)
-      });
-
+      const params: { clinic_id: number; date: string; service_id: number; doctor_id?: number } = {
+        clinic_id:  clinic.clinic_id,
+        date:       formData.appointment_date,
+        service_id: parseInt(formData.service_id),
+      };
+      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = parseInt(formData.doctor_id);
+      const response = await publicAPI.getAvailableSlots(params);
       if (response.data.success) {
         setAvailableSlots(response.data.data.slots);
       }
-    } catch (error) {
-      console.error('Failed to fetch slots:', error);
+    } catch {
+      // silently fail
     } finally {
       setIsLoadingSlots(false);
     }
@@ -121,14 +108,15 @@ const PublicBooking = () => {
     try {
       setIsSubmitting(true);
       const response = await publicAPI.bookAppointment({
-        clinic_id: Number(clinicId),
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email,
-        service_id: parseInt(formData.service_id),
+        clinic_id:        clinic!.clinic_id,
+        name:             formData.name,
+        phone:            formData.phone,
+        email:            formData.email || undefined,
+        service_id:       parseInt(formData.service_id),
+        doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? parseInt(formData.doctor_id) : undefined,
         appointment_date: formData.appointment_date,
         appointment_time: formData.appointment_time,
-        notes: formData.notes
+        notes:            formData.notes || undefined,
       });
 
       if (response.data.success) {
@@ -280,7 +268,7 @@ const PublicBooking = () => {
                   </Label>
                   <Select
                     value={formData.service_id}
-                    onValueChange={(value) => setFormData({ ...formData, service_id: value })}
+                    onValueChange={(value) => setFormData({ ...formData, service_id: value, appointment_time: '' })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a service" />
@@ -288,12 +276,36 @@ const PublicBooking = () => {
                     <SelectContent>
                       {services.map((service) => (
                         <SelectItem key={service.service_id} value={service.service_id.toString()}>
-                          {service.service_name} ({service.duration_minutes} min) - ₹{service.price}
+                          {service.service_name} ({service.duration_minutes} min) — ₹{Number(service.price).toLocaleString()}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Optional Doctor Selector */}
+                {doctors.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>
+                      <UserRound className="w-4 h-4 inline mr-2" />
+                      Doctor <span className="text-gray-400 font-normal">(optional)</span>
+                    </Label>
+                    <Select
+                      value={formData.doctor_id}
+                      onValueChange={(value) => setFormData({ ...formData, doctor_id: value, appointment_time: '' })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Any available doctor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any available doctor</SelectItem>
+                        {doctors.map(d => (
+                          <SelectItem key={d.doctor_id} value={d.doctor_id.toString()}>
+                            {d.name}{d.specialization ? ` — ${d.specialization}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="date">

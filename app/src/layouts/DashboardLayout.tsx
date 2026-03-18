@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   LayoutDashboard,
   Users,
+  UserRound,
   Stethoscope,
   CalendarDays,
   BarChart3,
@@ -30,6 +31,7 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/appointments', label: 'Appointments', icon: CalendarDays },
   { path: '/patients', label: 'Patients', icon: Users },
+  { path: '/doctors', label: 'Doctors', icon: UserRound },
   { path: '/services', label: 'Services', icon: Stethoscope },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/settings', label: 'Settings', icon: Settings },

@@ -2,8 +2,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
 
-// Generate JWT token
+/**
+ * Generate JWT token
+ * Uses process.env.JWT_SECRET and process.env.JWT_EXPIRES_IN (defaulting to 7d)
+ */
 const generateToken = (clinic) => {
+  if (!process.env.JWT_SECRET) {
+    console.error("❌ JWT_SECRET is not set in environment variables!");
+  }
   return jwt.sign(
     { 
       clinic_id: clinic.clinic_id,
@@ -20,8 +26,8 @@ const register = async (req, res) => {
     const { clinic_name, email, phone, password } = req.body;
 
     // Check if email already exists
-    const [existingClinics] = await pool.execute(
-      'SELECT clinic_id FROM clinics WHERE email = ?',
+    const { rows: existingClinics } = await pool.query(
+      'SELECT clinic_id FROM clinics WHERE email = $1',
       [email]
     );
 
@@ -37,23 +43,22 @@ const register = async (req, res) => {
     const password_hash = await bcrypt.hash(password, saltRounds);
 
     // Insert new clinic
-    const [result] = await pool.execute(
+    const { rows: result } = await pool.query(
       `INSERT INTO clinics (clinic_name, email, phone, password_hash, subscription_plan) 
-       VALUES (?, ?, ?, ?, 'free')`,
+       VALUES ($1, $2, $3, $4, 'free')
+       RETURNING clinic_id`,
       [clinic_name, email, phone, password_hash]
     );
 
-    const clinic_id = result.insertId;
+    const clinic_id = result[0].clinic_id;
 
     // Get the created clinic
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, created_at FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, phone, subscription_plan, created_at FROM clinics WHERE clinic_id = $1',
       [clinic_id]
     );
 
     const clinic = clinics[0];
-
-    // Generate token
     const token = generateToken(clinic);
 
     res.status(201).json({
@@ -75,7 +80,7 @@ const register = async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Registration failed. Please try again.'
+      message: 'Registration failed.'
     });
   }
 };
@@ -86,8 +91,8 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Find clinic by email
-    const [clinics] = await pool.execute(
-      'SELECT clinic_id, clinic_name, email, phone, password_hash, subscription_plan, subscription_status, is_active FROM clinics WHERE email = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT clinic_id, clinic_name, email, phone, password_hash, subscription_plan, subscription_status, is_active FROM clinics WHERE email = $1',
       [email]
     );
 
@@ -100,17 +105,14 @@ const login = async (req, res) => {
 
     const clinic = clinics[0];
 
-    // Check if clinic is active
     if (!clinic.is_active) {
       return res.status(401).json({
         success: false,
-        message: 'Account is deactivated. Please contact support.'
+        message: 'Account is deactivated.'
       });
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, clinic.password_hash);
-
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -119,12 +121,11 @@ const login = async (req, res) => {
     }
 
     // Update last login
-    await pool.execute(
-      'UPDATE clinics SET last_login_at = NOW() WHERE clinic_id = ?',
+    await pool.query(
+      'UPDATE clinics SET last_login_at = NOW() WHERE clinic_id = $1',
       [clinic.clinic_id]
     );
 
-    // Generate token
     const token = generateToken(clinic);
 
     res.json({
@@ -146,7 +147,7 @@ const login = async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Login failed. Please try again.'
+      message: 'Login failed.'
     });
   }
 };
@@ -154,12 +155,12 @@ const login = async (req, res) => {
 // Get current clinic profile
 const getMe = async (req, res) => {
   try {
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT clinic_id, clinic_name, email, phone, subscription_plan, subscription_status,
               working_hours_start, working_hours_end, working_days, timezone, currency,
               address, city, state, country, postal_code, logo_url, website, google_review_link,
               sms_enabled, whatsapp_enabled, created_at, last_login_at
-       FROM clinics WHERE clinic_id = ?`,
+       FROM clinics WHERE clinic_id = $1`,
       [req.clinic.clinic_id]
     );
 
@@ -194,20 +195,22 @@ const updateProfile = async (req, res) => {
 
     const updates = [];
     const values = [];
+    let paramIndex = 1;
 
-    if (clinic_name) { updates.push('clinic_name = ?'); values.push(clinic_name); }
-    if (phone) { updates.push('phone = ?'); values.push(phone); }
-    if (address) { updates.push('address = ?'); values.push(address); }
-    if (city) { updates.push('city = ?'); values.push(city); }
-    if (state) { updates.push('state = ?'); values.push(state); }
-    if (country) { updates.push('country = ?'); values.push(country); }
-    if (postal_code) { updates.push('postal_code = ?'); values.push(postal_code); }
-    if (working_hours_start) { updates.push('working_hours_start = ?'); values.push(working_hours_start); }
-    if (working_hours_end) { updates.push('working_hours_end = ?'); values.push(working_hours_end); }
-    if (working_days) { updates.push('working_days = ?'); values.push(JSON.stringify(working_days)); }
-    if (timezone) { updates.push('timezone = ?'); values.push(timezone); }
-    if (website) { updates.push('website = ?'); values.push(website); }
-    if (google_review_link) { updates.push('google_review_link = ?'); values.push(google_review_link); }
+    // Use strictly PostgreSQL positional parameters ($1, $2...)
+    if (clinic_name) { updates.push(`clinic_name = $${paramIndex++}`); values.push(clinic_name); }
+    if (phone) { updates.push(`phone = $${paramIndex++}`); values.push(phone); }
+    if (address) { updates.push(`address = $${paramIndex++}`); values.push(address); }
+    if (city) { updates.push(`city = $${paramIndex++}`); values.push(city); }
+    if (state) { updates.push(`state = $${paramIndex++}`); values.push(state); }
+    if (country) { updates.push(`country = $${paramIndex++}`); values.push(country); }
+    if (postal_code) { updates.push(`postal_code = $${paramIndex++}`); values.push(postal_code); }
+    if (working_hours_start) { updates.push(`working_hours_start = $${paramIndex++}`); values.push(working_hours_start); }
+    if (working_hours_end) { updates.push(`working_hours_end = $${paramIndex++}`); values.push(working_hours_end); }
+    if (working_days) { updates.push(`working_days = $${paramIndex++}`); values.push(JSON.stringify(working_days)); }
+    if (timezone) { updates.push(`timezone = $${paramIndex++}`); values.push(timezone); }
+    if (website) { updates.push(`website = $${paramIndex++}`); values.push(website); }
+    if (google_review_link) { updates.push(`google_review_link = $${paramIndex++}`); values.push(google_review_link); }
 
     if (updates.length === 0) {
       return res.status(400).json({
@@ -217,17 +220,18 @@ const updateProfile = async (req, res) => {
     }
 
     values.push(req.clinic.clinic_id);
+    const clinicIdParam = `$${paramIndex}`;
 
-    await pool.execute(
-      `UPDATE clinics SET ${updates.join(', ')} WHERE clinic_id = ?`,
+    await pool.query(
+      `UPDATE clinics SET ${updates.join(', ')} WHERE clinic_id = ${clinicIdParam}`,
       values
     );
 
     // Get updated clinic
-    const [clinics] = await pool.execute(
+    const { rows: clinics } = await pool.query(
       `SELECT clinic_id, clinic_name, email, phone, working_hours_start, working_hours_end,
               working_days, timezone, address, city, state, country, website, google_review_link
-       FROM clinics WHERE clinic_id = ?`,
+       FROM clinics WHERE clinic_id = $1`,
       [req.clinic.clinic_id]
     );
 
@@ -250,9 +254,8 @@ const changePassword = async (req, res) => {
   try {
     const { current_password, new_password } = req.body;
 
-    // Get current password hash
-    const [clinics] = await pool.execute(
-      'SELECT password_hash FROM clinics WHERE clinic_id = ?',
+    const { rows: clinics } = await pool.query(
+      'SELECT password_hash FROM clinics WHERE clinic_id = $1',
       [req.clinic.clinic_id]
     );
 
@@ -263,9 +266,7 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isPasswordValid = await bcrypt.compare(current_password, clinics[0].password_hash);
-
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -273,13 +274,11 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Hash new password
     const saltRounds = 10;
     const new_password_hash = await bcrypt.hash(new_password, saltRounds);
 
-    // Update password
-    await pool.execute(
-      'UPDATE clinics SET password_hash = ? WHERE clinic_id = ?',
+    await pool.query(
+      'UPDATE clinics SET password_hash = $1 WHERE clinic_id = $2',
       [new_password_hash, req.clinic.clinic_id]
     );
 
@@ -296,7 +295,7 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Logout (client-side token removal, but we can track if needed)
+// Logout (client-side handles token removal)
 const logout = async (req, res) => {
   res.json({
     success: true,

@@ -6,7 +6,7 @@ const getAllServices = async (req, res) => {
     const { active_only = true } = req.query;
     const clinic_id = req.clinic.clinic_id;
 
-    let query = 'SELECT * FROM services WHERE clinic_id = ?';
+    let query = 'SELECT * FROM services WHERE clinic_id = $1';
     const params = [clinic_id];
 
     if (active_only === 'true') {
@@ -15,7 +15,7 @@ const getAllServices = async (req, res) => {
 
     query += ' ORDER BY service_name';
 
-    const [services] = await pool.execute(query, params);
+    const { rows: services } = await pool.query(query, params);
 
     res.json({
       success: true,
@@ -36,8 +36,8 @@ const getServiceById = async (req, res) => {
     const { id } = req.params;
     const clinic_id = req.clinic.clinic_id;
 
-    const [services] = await pool.execute(
-      'SELECT * FROM services WHERE service_id = ? AND clinic_id = ?',
+    const { rows: services } = await pool.query(
+      'SELECT * FROM services WHERE service_id = $1 AND clinic_id = $2',
       [id, clinic_id]
     );
 
@@ -68,8 +68,8 @@ const createService = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
 
     // Check if service with same name exists
-    const [existingServices] = await pool.execute(
-      'SELECT service_id FROM services WHERE clinic_id = ? AND service_name = ?',
+    const { rows: existingServices } = await pool.query(
+      'SELECT service_id FROM services WHERE clinic_id = $1 AND service_name = $2',
       [clinic_id, service_name]
     );
 
@@ -80,16 +80,17 @@ const createService = async (req, res) => {
       });
     }
 
-    const [result] = await pool.execute(
+    const { rows: result } = await pool.query(
       `INSERT INTO services (clinic_id, service_name, description, duration_minutes, price, color_code)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING service_id`,
       [clinic_id, service_name, description, duration_minutes, price, color_code || '#3B82F6']
     );
 
-    const service_id = result.insertId;
+    const service_id = result[0].service_id;
 
-    const [services] = await pool.execute(
-      'SELECT * FROM services WHERE service_id = ?',
+    const { rows: services } = await pool.query(
+      'SELECT * FROM services WHERE service_id = $1',
       [service_id]
     );
 
@@ -115,8 +116,8 @@ const updateService = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
 
     // Check if service exists
-    const [existingServices] = await pool.execute(
-      'SELECT service_id FROM services WHERE service_id = ? AND clinic_id = ?',
+    const { rows: existingServices } = await pool.query(
+      'SELECT service_id FROM services WHERE service_id = $1 AND clinic_id = $2',
       [id, clinic_id]
     );
 
@@ -129,8 +130,8 @@ const updateService = async (req, res) => {
 
     // Check name uniqueness if changed
     if (service_name) {
-      const [nameCheck] = await pool.execute(
-        'SELECT service_id FROM services WHERE clinic_id = ? AND service_name = ? AND service_id != ?',
+      const { rows: nameCheck } = await pool.query(
+        'SELECT service_id FROM services WHERE clinic_id = $1 AND service_name = $2 AND service_id != $3',
         [clinic_id, service_name, id]
       );
 
@@ -142,32 +143,36 @@ const updateService = async (req, res) => {
       }
     }
 
-    const updates = [];
-    const values = [];
+    const fields = [];
+    const vals   = [];
+    let n = 1;
 
-    if (service_name) { updates.push('service_name = ?'); values.push(service_name); }
-    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
-    if (duration_minutes) { updates.push('duration_minutes = ?'); values.push(duration_minutes); }
-    if (price !== undefined) { updates.push('price = ?'); values.push(price); }
-    if (color_code) { updates.push('color_code = ?'); values.push(color_code); }
-    if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active); }
+    const set = (col, val) => { fields.push(`${col} = $${n++}`); vals.push(val); };
 
-    if (updates.length === 0) {
+    if (service_name       !== undefined) set('service_name',       service_name);
+    if (description        !== undefined) set('description',        description);
+    if (duration_minutes   !== undefined) set('duration_minutes',   duration_minutes);
+    if (price              !== undefined) set('price',              price);
+    if (color_code         !== undefined) set('color_code',         color_code);
+    if (is_active          !== undefined) set('is_active',          is_active);
+
+    if (fields.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No fields to update.'
       });
     }
 
-    values.push(id, clinic_id);
+    set('updated_at', new Date());
+    vals.push(id, clinic_id);
 
-    await pool.execute(
-      `UPDATE services SET ${updates.join(', ')} WHERE service_id = ? AND clinic_id = ?`,
-      values
+    await pool.query(
+      `UPDATE services SET ${fields.join(', ')} WHERE service_id = $${n++} AND clinic_id = $${n++}`,
+      vals
     );
 
-    const [services] = await pool.execute(
-      'SELECT * FROM services WHERE service_id = ?',
+    const { rows: services } = await pool.query(
+      'SELECT * FROM services WHERE service_id = $1',
       [id]
     );
 
@@ -192,10 +197,10 @@ const deleteService = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
 
     // Check if service has future appointments
-    const [appointments] = await pool.execute(
+    const { rows: appointments } = await pool.query(
       `SELECT appointment_id FROM appointments 
-       WHERE service_id = ? AND clinic_id = ? 
-       AND appointment_date >= CURRENT_DATE() 
+       WHERE service_id = $1 AND clinic_id = $2
+       AND appointment_date >= CURRENT_DATE 
        AND status IN ('scheduled', 'confirmed')`,
       [id, clinic_id]
     );
@@ -208,12 +213,12 @@ const deleteService = async (req, res) => {
     }
 
     // Soft delete - set is_active to false
-    const [result] = await pool.execute(
-      'UPDATE services SET is_active = false WHERE service_id = ? AND clinic_id = ?',
+    const result = await pool.query(
+      'UPDATE services SET is_active = false WHERE service_id = $1 AND clinic_id = $2',
       [id, clinic_id]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Service not found.'
@@ -239,14 +244,14 @@ const getPopularServices = async (req, res) => {
     const clinic_id = req.clinic.clinic_id;
     const { limit = 5 } = req.query;
 
-    const [services] = await pool.execute(
+    const { rows: services } = await pool.query(
       `SELECT s.service_id, s.service_name, s.price, COUNT(a.appointment_id) as booking_count
        FROM services s
        LEFT JOIN appointments a ON s.service_id = a.service_id AND a.status = 'completed'
-       WHERE s.clinic_id = ?
+       WHERE s.clinic_id = $1
        GROUP BY s.service_id
        ORDER BY booking_count DESC
-       LIMIT ?`,
+       LIMIT $2`,
       [clinic_id, parseInt(limit)]
     );
 
