@@ -82,8 +82,6 @@ const createPatient = async (req, res) => {
     } = req.body;
 
     const clinic_id = req.clinic.clinic_id;
-    console.log("DEBUG: Create Patient Body:", req.body);
-    console.log("DEBUG: Clinic ID:", clinic_id);
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -104,23 +102,20 @@ const createPatient = async (req, res) => {
       });
     }
 
-    const query = `INSERT INTO patients
+    const { rows: result } = await pool.query(
+      `INSERT INTO patients
       (clinic_id, name, phone, email, date_of_birth, gender, address, city, state,
-       postal_code, medical_history, allergies, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING patient_id`;
-    
-    const values = [
-      clinic_id, name, phone, email || null, date_of_birth || null, 
-      gender || null, address || null, city || null, state || null,
-      postal_code || null, medical_history || null, 
-      allergies || null, notes || null
-    ];
-
-    console.log("DEBUG: Executing Query:", query);
-    console.log("DEBUG: Query Values:", values);
-
-    const { rows: result } = await pool.query(query, values);
+       postal_code, emergency_contact_name, emergency_contact_phone, medical_history, allergies, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING patient_id`,
+      [
+        clinic_id, name, phone, email || null, date_of_birth || null, 
+        gender || null, address || null, city || null, state || null,
+        postal_code || null, emergency_contact_name || null, 
+        emergency_contact_phone || null, medical_history || null, 
+        allergies || null, notes || null
+      ]
+    );
 
     const { rows: patients } = await pool.query(
       "SELECT * FROM patients WHERE patient_id = $1",
@@ -133,10 +128,10 @@ const createPatient = async (req, res) => {
       data: { patient: patients[0] }
     });
   } catch (error) {
-    console.error("Create patient error full:", error);
+    console.error("Create patient error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to create patient."
+      message: "Failed to create patient."
     });
   }
 };

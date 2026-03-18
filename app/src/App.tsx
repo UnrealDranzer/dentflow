@@ -1,26 +1,26 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/services/api';
 
 // Layouts
-const DashboardLayout = lazy(() => import('@/layouts/DashboardLayout'));
-const AuthLayout = lazy(() => import('@/layouts/AuthLayout'));
+import DashboardLayout from '@/layouts/DashboardLayout';
+import AuthLayout from '@/layouts/AuthLayout';
 
 // Pages
-const Login = lazy(() => import('@/pages/auth/Login'));
-const Register = lazy(() => import('@/pages/auth/Register'));
-const Dashboard = lazy(() => import('@/pages/Dashboard'));
-const Patients = lazy(() => import('@/pages/patients/Patients'));
-const PatientDetail = lazy(() => import('@/pages/patients/PatientDetail'));
-const Services = lazy(() => import('@/pages/services/Services'));
-const Appointments = lazy(() => import('@/pages/appointments/Appointments'));
-const AppointmentDetail = lazy(() => import('@/pages/appointments/AppointmentDetail'));
-const NewAppointment = lazy(() => import('@/pages/appointments/NewAppointment'));
-const Analytics = lazy(() => import('@/pages/analytics/Analytics'));
-const Settings = lazy(() => import('@/pages/settings/Settings'));
-const PublicBooking = lazy(() => import('@/pages/public/PublicBooking'));
-const Doctors = lazy(() => import('@/pages/doctors/Doctors'));
+import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import Dashboard from '@/pages/Dashboard';
+import Patients from '@/pages/patients/Patients';
+import PatientDetail from '@/pages/patients/PatientDetail';
+import Services from '@/pages/services/Services';
+import Appointments from '@/pages/appointments/Appointments';
+import AppointmentDetail from '@/pages/appointments/AppointmentDetail';
+import NewAppointment from '@/pages/appointments/NewAppointment';
+import Analytics from '@/pages/analytics/Analytics';
+import Settings from '@/pages/settings/Settings';
+import PublicBooking from '@/pages/public/PublicBooking';
+import Doctors from '@/pages/doctors/Doctors';
 
 // Components
 import { Toaster } from '@/components/ui/sonner';
@@ -94,56 +94,54 @@ function App() {
 
   return (
     <Router>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Spinner className="w-8 h-8" /></div>}>
-        <Routes>
-          {/* Public Booking Route */}
-          <Route path="/book/:clinicSlug" element={<PublicBooking />} />
-          
-          {/* Auth Routes */}
-          <Route element={<AuthLayout />}>
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/register" 
-              element={
-                <PublicRoute>
-                  <Register />
-                </PublicRoute>
-              } 
-            />
-          </Route>
-  
-          {/* Protected Dashboard Routes */}
+      <Routes>
+        {/* Public Booking Route */}
+        <Route path="/book/:clinicSlug" element={<PublicBooking />} />
+        
+        {/* Auth Routes */}
+        <Route element={<AuthLayout />}>
           <Route 
+            path="/login" 
             element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/patients" element={<Patients />} />
-            <Route path="/patients/:id" element={<PatientDetail />} />
-            <Route path="/doctors" element={<Doctors />} />
-            <Route path="/services" element={<Services />} />
-            <Route path="/appointments" element={<Appointments />} />
-            <Route path="/appointments/new" element={<NewAppointment />} />
-            <Route path="/appointments/:id" element={<AppointmentDetail />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
-          </Route>
-  
-          {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Suspense>
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            } 
+          />
+          <Route 
+            path="/register" 
+            element={
+              <PublicRoute>
+                <Register />
+              </PublicRoute>
+            } 
+          />
+        </Route>
+
+        {/* Protected Dashboard Routes */}
+        <Route 
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/patients/:id" element={<PatientDetail />} />
+          <Route path="/doctors" element={<Doctors />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/appointments" element={<Appointments />} />
+          <Route path="/appointments/new" element={<NewAppointment />} />
+          <Route path="/appointments/:id" element={<AppointmentDetail />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+
+        {/* Default Redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
       <Toaster position="top-right" />
     </Router>
   );

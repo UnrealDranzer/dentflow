@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://dentflow.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -34,67 +34,67 @@ api.interceptors.response.use(
 // ─── Auth API ────────────────────────────────────────────────────────────────
 export const authAPI = {
   register: (data: { clinic_name: string; email: string; phone: string; password: string }) =>
-    api.post('auth/register', data),
+    api.post('/auth/register', data),
   login: (data: { email: string; password: string }) =>
-    api.post('auth/login', data),
+    api.post('/auth/login', data),
   getMe: () =>
-    api.get('auth/me'),
+    api.get('/auth/me'),
   logout: () =>
-    api.post('auth/logout'),
+    api.post('/auth/logout'),
 };
 
 // ─── Clinic Settings API ─────────────────────────────────────────────────────
 export const clinicAPI = {
   getSettings: () =>
-    api.get('clinics/settings'),
+    api.get('/clinics/settings'),
   updateProfile: (data: Partial<Clinic>) =>
-    api.put('clinics/settings/profile', data),
+    api.put('/clinics/settings/profile', data),
   updateWorkingHours: (data: { working_hours_start?: string; working_hours_end?: string; working_days?: number[]; slot_interval_minutes?: number }) =>
-    api.put('clinics/settings/working-hours', data),
+    api.put('/clinics/settings/working-hours', data),
   updateNotifications: (data: { sms_enabled?: boolean; whatsapp_enabled?: boolean; google_review_link?: string }) =>
-    api.put('clinics/settings/notifications', data),
+    api.put('/clinics/settings/notifications', data),
   changePassword: (data: { current_password: string; new_password: string }) =>
-    api.put('clinics/settings/password', data),
+    api.put('/clinics/settings/password', data),
 };
 
 // ─── Patients API ─────────────────────────────────────────────────────────────
 export const patientsAPI = {
   getAll: (params?: { search?: string; page?: number; limit?: number }) =>
-    api.get('patients', { params }),
+    api.get('/patients', { params }),
   getById: (id: number) =>
-    api.get(`patients/${id}`),
+    api.get(`/patients/${id}`),
   create: (data: Partial<Patient>) =>
-    api.post('patients', data),
+    api.post('/patients', data),
   update: (id: number, data: Partial<Patient>) =>
-    api.put(`patients/${id}`, data),
+    api.put(`/patients/${id}`, data),
   delete: (id: number) =>
-    api.delete(`patients/${id}`),
+    api.delete(`/patients/${id}`),
   getStats: () =>
-    api.get('patients/stats'),
+    api.get('/patients/stats'),
 };
 
 // ─── Services API ─────────────────────────────────────────────────────────────
 export const servicesAPI = {
   getAll: (params?: { active_only?: boolean }) =>
-    api.get('services', { params }),
+    api.get('/services', { params }),
   getById: (id: number) =>
-    api.get(`services/${id}`),
+    api.get(`/services/${id}`),
   create: (data: Partial<Service>) =>
-    api.post('services', data),
+    api.post('/services', data),
   update: (id: number, data: Partial<Service>) =>
-    api.put(`services/${id}`, data),
+    api.put(`/services/${id}`, data),
   delete: (id: number) =>
-    api.delete(`services/${id}`),
+    api.delete(`/services/${id}`),
   getPopular: () =>
-    api.get('services/popular'),
+    api.get('/services/popular'),
 };
 
 // ─── Doctors API ──────────────────────────────────────────────────────────────
 export const doctorsAPI = {
   getAll: (params?: { search?: string; active_only?: boolean }) =>
-    api.get('doctors', { params }),
+    api.get('/doctors', { params }),
   getById: (id: number) =>
-    api.get(`doctors/${id}`),
+    api.get(`/doctors/${id}`),
   create: (data: Partial<Doctor> & {
     working_days?: number[];
     start_time?: string;
@@ -103,7 +103,7 @@ export const doctorsAPI = {
     break_end?: string;
     slot_interval?: number;
   }) =>
-    api.post('doctors', data),
+    api.post('/doctors', data),
   update: (id: number, data: Partial<Doctor> & {
     working_days?: number[];
     start_time?: string;
@@ -113,9 +113,9 @@ export const doctorsAPI = {
     slot_interval?: number;
     is_active?: boolean;
   }) =>
-    api.put(`doctors/${id}`, data),
+    api.put(`/doctors/${id}`, data),
   delete: (id: number) =>
-    api.delete(`doctors/${id}`),
+    api.delete(`/doctors/${id}`),
   updateAvailability: (id: number, data: {
     working_days: number[];
     start_time: string;
@@ -124,55 +124,55 @@ export const doctorsAPI = {
     break_end?: string;
     slot_interval?: number;
   }) =>
-    api.put(`doctors/${id}/availability`, data),
+    api.put(`/doctors/${id}/availability`, data),
   addLeave: (id: number, data: { leave_date: string; reason?: string }) =>
-    api.post(`doctors/${id}/leaves`, data),
+    api.post(`/doctors/${id}/leaves`, data),
   removeLeave: (doctorId: number, leaveId: number) =>
-    api.delete(`doctors/${doctorId}/leaves/${leaveId}`),
+    api.delete(`/doctors/${doctorId}/leaves/${leaveId}`),
   getAvailableSlots: (id: number, params: { date: string; service_id: number }) =>
-    api.get(`doctors/${id}/available-slots`, { params }),
+    api.get(`/doctors/${id}/available-slots`, { params }),
 };
 
 // ─── Appointments API ─────────────────────────────────────────────────────────
 export const appointmentsAPI = {
   getAll: (params?: { date?: string; status?: string; patient_id?: number; doctor_id?: number; page?: number; limit?: number }) =>
-    api.get('appointments', { params }),
+    api.get('/appointments', { params }),
   getById: (id: number) =>
-    api.get(`appointments/${id}`),
+    api.get(`/appointments/${id}`),
   create: (data: Partial<Appointment>) =>
-    api.post('appointments', data),
+    api.post('/appointments', data),
   update: (id: number, data: Partial<Appointment>) =>
-    api.put(`appointments/${id}`, data),
+    api.put(`/appointments/${id}`, data),
   delete: (id: number) =>
-    api.delete(`appointments/${id}`),
+    api.delete(`/appointments/${id}`),
   getAvailableSlots: (params: { date: string; service_id: number; doctor_id?: number }) =>
-    api.get('appointments/available-slots', { params }),
+    api.get('/appointments/available-slots', { params }),
   getToday: () =>
-    api.get('appointments/today'),
+    api.get('/appointments/today'),
   getUpcoming: (params?: { limit?: number }) =>
-    api.get('appointments/upcoming', { params }),
+    api.get('/appointments/upcoming', { params }),
 };
 
 // ─── Analytics API ────────────────────────────────────────────────────────────
 export const analyticsAPI = {
   getDashboardOverview: () =>
-    api.get('analytics/dashboard'),
+    api.get('/analytics/dashboard'),
   getAppointmentStats: (params?: { start_date?: string; end_date?: string }) =>
-    api.get('analytics/appointments', { params }),
+    api.get('/analytics/appointments', { params }),
   getRevenueAnalytics: (params?: { period?: string }) =>
-    api.get('analytics/revenue', { params }),
+    api.get('/analytics/revenue', { params }),
   getPatientAnalytics: () =>
-    api.get('analytics/patients'),
+    api.get('/analytics/patients'),
 };
 
 // ─── Public API (no auth required) ───────────────────────────────────────────
 export const publicAPI = {
   getClinicInfo: (clinicSlug: string) =>
-    api.get(`public/clinic/${clinicSlug}`),
+    axios.get(`${API_BASE_URL}/public/clinic/${clinicSlug}`),
   getAvailableSlots: (params: { clinic_id: number; date: string; service_id: number; doctor_id?: number }) =>
-    api.get(`public/available-slots`, { params }),
+    axios.get(`${API_BASE_URL}/public/available-slots`, { params }),
   bookAppointment: (data: Partial<AppointmentBooking>) =>
-    api.post(`public/book-appointment`, data),
+    axios.post(`${API_BASE_URL}/public/book-appointment`, data),
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
