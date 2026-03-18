@@ -75,13 +75,13 @@ const getPatientById = async (req, res) => {
 // Create new patient
 const createPatient = async (req, res) => {
   try {
-    const {
-      name, phone, email, date_of_birth, gender, address, city, state,
-      postal_code, emergency_contact_name, emergency_contact_phone,
-      medical_history, allergies, notes
-    } = req.body;
+    console.log("NEW PATIENT CONTROLLER VERSION 2");
+    console.log("Incoming patient:", req.body);
+    
+    const { name, phone, email } = req.body;
+    const clinic_id = req.clinic?.clinic_id;
 
-    const clinic_id = req.clinic.clinic_id;
+    console.log("Creating patient with:", { clinic_id, name, phone, email });
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -90,48 +90,27 @@ const createPatient = async (req, res) => {
       });
     }
 
-    const { rows: existingPatients } = await pool.query(
-      "SELECT patient_id FROM patients WHERE clinic_id = $1 AND phone = $2",
-      [clinic_id, phone]
-    );
-
-    if (existingPatients.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: "Patient with this phone number already exists."
-      });
-    }
-
+    // EXACT QUERY AS REQUESTED
     const { rows: result } = await pool.query(
-      `INSERT INTO patients
-      (clinic_id, name, phone, email, date_of_birth, gender, address, city, state,
-       postal_code, emergency_contact_name, emergency_contact_phone, medical_history, allergies, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING patient_id`,
+      `INSERT INTO patients (clinic_id, name, phone, email)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
       [
-        clinic_id, name, phone, email || null, date_of_birth || null, 
-        gender || null, address || null, city || null, state || null,
-        postal_code || null, emergency_contact_name || null, 
-        emergency_contact_phone || null, medical_history || null, 
-        allergies || null, notes || null
+        clinic_id,
+        name,
+        phone,
+        email || null
       ]
     );
 
-    const { rows: patients } = await pool.query(
-      "SELECT * FROM patients WHERE patient_id = $1",
-      [result[0].patient_id]
-    );
+    const newPatient = result[0];
+    res.status(201).json(newPatient);
 
-    res.status(201).json({
-      success: true,
-      message: "Patient created successfully",
-      data: { patient: patients[0] }
-    });
   } catch (error) {
-    console.error("Create patient error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create patient."
+    console.error("DB ERROR:", error.message);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
     });
   }
 };
