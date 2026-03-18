@@ -85,6 +85,11 @@ const Patients = () => {
         fetchPatients();
       }
     } catch (error: any) {
+      console.error('DEBUG: Add Patient API Error:', error);
+      if (error.response) {
+        console.error('DEBUG: API Error Data:', error.response.data);
+        console.error('DEBUG: API Error Status:', error.response.status);
+      }
       toast.error(error.response?.data?.message || 'Failed to add patient');
     }
   };

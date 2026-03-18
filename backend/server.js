@@ -27,12 +27,15 @@ app.use(helmet());
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: ["https://dentflow-delta.vercel.app"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+// Handle preflight requests globally
+app.options("*", cors());
 
 app.use(express.json());
 
@@ -63,17 +66,27 @@ app.get("/", (req, res) => {
  */
 app.get("/api/health", async (req, res) => {
   try {
-    const dbCheck = await query('SELECT NOW() AS now');
-    res.json({ 
-      success: true, 
-      db: "connected",
-      timestamp: dbCheck.rows[0].now
+    const dbTest = await query("SELECT NOW()");
+    const tableInfo = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'patients'
+      ORDER BY ordinal_position
+    `);
+    
+    res.json({
+      success: true,
+      message: "API is healthy",
+      timestamp: dbTest.rows[0].now,
+      environment: process.env.NODE_ENV,
+      database: "Connected",
+      patients_schema: tableInfo.rows.map(r => r.column_name)
     });
-  } catch (error) {
-    console.error("❌ Health check database failure:", error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+      error: err.message
     });
   }
 });
