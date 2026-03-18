@@ -34,6 +34,9 @@ app.use(
   })
 );
 
+// Handle preflight requests globally (Express 5 compatible wildcard)
+app.options(/.*/, cors());
+
 app.use(express.json());
 
 const authLimiter = rateLimit({
