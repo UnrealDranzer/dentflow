@@ -75,13 +75,8 @@ const getPatientById = async (req, res) => {
 // Create new patient
 const createPatient = async (req, res) => {
   try {
-    console.log("NEW PATIENT CONTROLLER VERSION 2");
-    console.log("Incoming patient:", req.body);
-    
     const { name, phone, email } = req.body;
     const clinic_id = req.clinic?.clinic_id;
-
-    console.log("Creating patient with:", { clinic_id, name, phone, email });
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -104,13 +99,24 @@ const createPatient = async (req, res) => {
     );
 
     const newPatient = result[0];
-    res.status(201).json(newPatient);
+    res.status(201).json({
+      success: true,
+      message: "Patient added successfully",
+      data: newPatient
+    });
 
   } catch (error) {
+    if (error.code === '23505') {
+      return res.status(400).json({
+        success: false,
+        message: "Patient with this phone number already exists"
+      });
+    }
+
     console.error("DB ERROR:", error.message);
     res.status(500).json({ 
       success: false, 
-      message: error.message 
+      message: "Failed to add patient. Please try again later."
     });
   }
 };

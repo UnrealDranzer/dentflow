@@ -74,9 +74,13 @@ const Patients = () => {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       const response = await patientsAPI.create(newPatient);
       if (response.data.success) {
         toast.success('Patient added successfully');
@@ -86,6 +90,8 @@ const Patients = () => {
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to add patient');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -171,7 +177,9 @@ const Patients = () => {
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Patient</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Adding...' : 'Add Patient'}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
