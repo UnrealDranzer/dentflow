@@ -142,9 +142,12 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.today.total_appointments || 0}</div>
+            {/* Safe access and fallback to monthlyStats.total if today is missing to prevent crash */}
+            <div className="text-2xl font-bold">
+              {(stats as any)?.today?.total_appointments ?? (stats as any)?.monthlyStats?.total ?? 0}
+            </div>
             <p className="text-xs text-gray-500 mt-1">
-              {stats?.today.scheduled || 0} scheduled, {stats?.today.completed || 0} completed
+              {(stats as any)?.today?.scheduled ?? 0} scheduled, {(stats as any)?.today?.completed ?? 0} completed
             </p>
           </CardContent>
         </Card>
@@ -157,7 +160,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.upcoming_appointments || 0}</div>
+            <div className="text-2xl font-bold">
+              {stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0}
+            </div>
             <p className="text-xs text-gray-500 mt-1">Next 7 days</p>
           </CardContent>
         </Card>
@@ -170,7 +175,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.new_patients_this_month || 0}</div>
+            <div className="text-2xl font-bold">
+              {stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0}
+            </div>
             <p className="text-xs text-gray-500 mt-1">This month</p>
           </CardContent>
         </Card>
@@ -183,7 +190,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.monthly_revenue || 0)}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(stats?.monthly_revenue ?? (stats as any)?.monthlyStats?.revenue ?? 0)}
+            </div>
             <p className="text-xs text-gray-500 mt-1">From completed appointments</p>
           </CardContent>
         </Card>
