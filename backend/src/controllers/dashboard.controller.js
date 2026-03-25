@@ -3,15 +3,14 @@ import { query } from '../config/db.js';
 export const getDashboard = async (req, res, next) => {
   try {
     const [todayRes, statsRes, upcomingRes, recentPatientsRes] = await Promise.all([
-      // Today's appointments — Using range for performance
+      // Today's appointments
       query(
         `SELECT a.*, p.name as patient_name, u.name as dentist_name
          FROM appointments a
          JOIN patients p ON a.patient_id = p.id
          LEFT JOIN users u ON a.dentist_id = u.id
          WHERE a.clinic_id = $1
-           AND a.scheduled_at >= CURRENT_DATE
-           AND a.scheduled_at < CURRENT_DATE + INTERVAL '1 day'
+           AND a.scheduled_at::date = CURRENT_DATE
            AND a.status != 'cancelled'
          ORDER BY a.scheduled_at ASC`,
         [req.clinicId]
@@ -20,7 +19,6 @@ export const getDashboard = async (req, res, next) => {
       // Monthly stats
       query(
         `SELECT
-           COUNT(*)                                      AS total_count,
            COUNT(*) FILTER (WHERE status = 'completed')  AS completed_count,
            COUNT(*) FILTER (WHERE status = 'no_show')    AS no_show_count,
            COUNT(*) FILTER (WHERE scheduled_at > NOW())  AS upcoming_count,
@@ -53,22 +51,21 @@ export const getDashboard = async (req, res, next) => {
       ),
     ]);
 
-    const s = statsRes.rows[0] || {};
+    const s = statsRes.rows[0];
 
     res.json({
       success: true,
       data: {
-        today_appointments: todayRes.rows.map(r => ({ ...r, id: String(r.id), appointment_id: String(r.id) })),
-        upcoming_appointments: upcomingRes.rows.map(r => ({ ...r, id: String(r.id), appointment_id: String(r.id) })),
-        recent_patients: recentPatientsRes.rows.map(r => ({ ...r, id: String(r.id) })),
+        today_appointments: todayRes.rows,
+        upcoming_appointments: upcomingRes.rows,
+        recent_patients: recentPatientsRes.rows,
         stats: {
-          today_count:        parseInt(todayRes.rows.length || 0, 10),
-          total_appointments: parseInt(s.total_count || 0, 10),
-          completed:          parseInt(s.completed_count || 0, 10),
-          no_show:            parseInt(s.no_show_count || 0, 10),
-          upcoming:           parseInt(s.upcoming_count || 0, 10),
-          revenue:            parseFloat(s.revenue_sum || 0),
-          total_patients:     parseInt(s.total_patients || 0, 10),
+          today_count:    todayRes.rows.length,
+          completed:      parseInt(s.completed_count || 0, 10),
+          no_show:        parseInt(s.no_show_count   || 0, 10),
+          upcoming:       parseInt(s.upcoming_count  || 0, 10),
+          revenue:        parseFloat(s.revenue_sum   || 0),
+          total_patients: parseInt(s.total_patients  || 0, 10),
         },
       },
     });

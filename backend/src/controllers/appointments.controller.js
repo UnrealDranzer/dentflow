@@ -14,7 +14,7 @@ export const getAppointments = async (req, res, next) => {
     const params = [req.clinicId];
 
     if (date) {
-      sql += ` AND a.scheduled_at >= $${params.length + 1}::date AND a.scheduled_at < $${params.length + 1}::date + INTERVAL '1 day'`;
+      sql += ` AND a.scheduled_at::date = $${params.length + 1}::date`;
       params.push(date);
     }
     if (dentistId) {
@@ -30,12 +30,7 @@ export const getAppointments = async (req, res, next) => {
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
     const result = await query(sql, params);
-    res.json({ 
-      success: true, 
-      data: { 
-        appointments: (result.rows || []).map(r => ({ ...r, id: String(r.id), appointment_id: String(r.id) })) 
-      } 
-    });
+    res.json({ success: true, data: { appointments: result.rows } });
   } catch (error) {
     next(error);
   }
@@ -49,18 +44,12 @@ export const getTodayAppointments = async (req, res, next) => {
        JOIN patients p ON a.patient_id = p.id
        LEFT JOIN users u ON a.dentist_id = u.id
        WHERE a.clinic_id = $1
-         AND a.scheduled_at >= CURRENT_DATE
-         AND a.scheduled_at < CURRENT_DATE + INTERVAL '1 day'
+         AND a.scheduled_at::date = CURRENT_DATE
          AND a.status != 'cancelled'
        ORDER BY a.scheduled_at ASC`,
       [req.clinicId]
     );
-    res.json({ 
-      success: true, 
-      data: { 
-        appointments: (result.rows || []).map(r => ({ ...r, id: String(r.id), appointment_id: String(r.id) })) 
-      } 
-    });
+    res.json({ success: true, data: { appointments: result.rows } });
   } catch (error) {
     next(error);
   }

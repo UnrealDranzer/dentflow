@@ -5,10 +5,10 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Standard fix for Neon/cloud postgres
+  ssl: { rejectUnauthorized: true },
   max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased to 10s
+  connectionTimeoutMillis: 5000,
 });
 
 pool.on('error', (err) => {

@@ -12,22 +12,23 @@ export const getDashboardAnalytics = async (req, res, next) => {
                 COUNT(*) FILTER (WHERE status='no_show') as no_shows,
                 COALESCE(SUM(amount) FILTER (WHERE status='completed'),0) as revenue
          FROM appointments 
-         WHERE clinic_id=$1 AND scheduled_at >= date_trunc('month', NOW())`,
+         WHERE clinic_id=$1 AND scheduled_at >= date_trunc('month',NOW())`,
         [clinicId]
       ),
       query(
-        `SELECT a.id, a.id as appointment_id, a.clinic_id, a.patient_id, a.dentist_id,
+        `SELECT a.id as appointment_id, a.clinic_id, a.patient_id, a.dentist_id,
                 a.scheduled_at, a.duration_mins, a.status, a.type, a.notes, 
                 a.treatment_done, a.amount, a.created_at,
                 p.name as patient_name,
-                COALESCE(u.name, d.name, 'Unassigned') as doctor_name
+                COALESCE(
+                  (SELECT u.name FROM users u WHERE u.id = a.dentist_id LIMIT 1),
+                  (SELECT d.name FROM doctors d WHERE d.id = a.dentist_id LIMIT 1),
+                  'Unassigned'
+                ) as doctor_name
          FROM appointments a
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN users u ON u.id = a.dentist_id
-         LEFT JOIN doctors d ON d.id = a.dentist_id
          WHERE a.clinic_id = $1 
-           AND a.scheduled_at >= CURRENT_DATE
-           AND a.scheduled_at < CURRENT_DATE + INTERVAL '1 day'
+           AND a.scheduled_at::date = CURRENT_DATE
            AND a.status != 'cancelled'
          ORDER BY a.scheduled_at ASC`,
         [clinicId]
@@ -41,25 +42,18 @@ export const getDashboardAnalytics = async (req, res, next) => {
       )
     ]);
 
-    const stats = statsRec.rows[0];
-
     res.json({
       success: true,
       data: {
-        totalPatients: parseInt(patientsRec.rows[0].count || 0, 10),
+        totalPatients: parseInt(patientsRec.rows[0].count, 10),
         monthlyStats: {
-          total: parseInt(stats.total || 0, 10),
-          completed: parseInt(stats.completed || 0, 10),
-          no_shows: parseInt(stats.no_shows || 0, 10),
-          revenue: parseFloat(stats.revenue || 0),
-          total_appointments: parseInt(stats.total || 0, 10) // Standardization for frontend
+          total: parseInt(statsRec.rows[0].total, 10),
+          completed: parseInt(statsRec.rows[0].completed, 10),
+          no_shows: parseInt(statsRec.rows[0].no_shows, 10),
+          revenue: parseFloat(statsRec.rows[0].revenue)
         },
-        todayAppointments: todayRec.rows.map(r => ({
-          ...r,
-          id: String(r.id || ''),
-          appointment_id: String(r.id || '')
-        })),
-        upcomingCount: parseInt(upcomingRec.rows[0].count || 0, 10)
+        todayAppointments: todayRec.rows,
+        upcomingCount: parseInt(upcomingRec.rows[0].count, 10)
       }
     });
   } catch (error) {

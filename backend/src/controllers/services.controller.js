@@ -16,12 +16,7 @@ export const getServices = async (req, res, next) => {
     sql += ' ORDER BY name ASC';
 
     const result = await query(sql, params);
-    const services = (result.rows || []).map(r => ({
-      ...r,
-      id: String(r.id),
-      service_id: String(r.id)
-    }));
-    res.json({ success: true, data: { services } });
+    res.json({ success: true, data: { services: result.rows } });
   } catch (error) {
     next(error);
   }

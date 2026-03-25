@@ -46,17 +46,17 @@ const Analytics = () => {
         analyticsAPI.getRevenueAnalytics()
       ]);
 
-      // Normalize overview data
-      const overviewData = overviewRes.data?.data?.stats || overviewRes.data?.data || overviewRes.data?.stats || overviewRes.data || {};
-      setDashboardData(overviewData);
+      if (overviewRes.data.success) {
+        setDashboardData(overviewRes.data.data);
+      }
 
-      // Normalize appointment stats
-      const apptData = appointmentRes.data?.data || appointmentRes.data || {};
-      setAppointmentStats(apptData);
+      if (appointmentRes.data.success) {
+        setAppointmentStats(appointmentRes.data.data);
+      }
 
-      // Normalize revenue data
-      const revData = revenueRes.data?.data || revenueRes.data || {};
-      setRevenueData(revData);
+      if (revenueRes.data.success) {
+        setRevenueData(revenueRes.data.data);
+      }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {
@@ -64,13 +64,12 @@ const Analytics = () => {
     }
   };
 
-  const formatCurrency = (amount: any) => {
-    const value = typeof amount === 'number' ? amount : parseFloat(amount || '0');
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(isNaN(value) ? 0 : value);
+    }).format(amount);
   };
 
   if (isLoading) {
@@ -83,14 +82,11 @@ const Analytics = () => {
 
   // REINFORCED SAFETY: Extract all stats into safe constants with multi-layered fallbacks
   const safeStats = {
-    today_total: dashboardData?.today?.total_appointments ?? 
-                 dashboardData?.total_appointments ?? 
-                 dashboardData?.today_total ?? 
-                 dashboardData?.monthlyStats?.total ?? 0,
+    today_total: dashboardData?.today?.total_appointments ?? dashboardData?.monthlyStats?.total ?? 0,
     total_patients: dashboardData?.total_patients ?? dashboardData?.totalPatients ?? 0,
-    new_patients: dashboardData?.new_patients_this_month ?? dashboardData?.new_patients ?? 0,
-    monthly_revenue: dashboardData?.monthly_revenue ?? dashboardData?.revenue ?? dashboardData?.monthlyStats?.revenue ?? 0,
-    upcoming: dashboardData?.upcoming_appointments ?? dashboardData?.upcoming_count ?? dashboardData?.upcomingCount ?? 0,
+    new_patients: dashboardData?.new_patients_this_month ?? 0,
+    monthly_revenue: dashboardData?.monthly_revenue ?? dashboardData?.monthlyStats?.revenue ?? 0,
+    upcoming: dashboardData?.upcoming_appointments ?? dashboardData?.upcomingCount ?? 0,
   };
 
   console.log("[DentFlow] Analytics rendering with safety lockdown v4", { hasData: !!dashboardData });

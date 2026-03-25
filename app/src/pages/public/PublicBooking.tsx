@@ -14,10 +14,8 @@ import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, U
 import { toast } from 'sonner';
 
 interface Clinic {
-  clinic_id: string | number;
-  id?: string | number;
+  clinic_id: number;
   clinic_name: string;
-  name?: string;
   phone: string;
   working_hours_start: string;
   working_hours_end: string;
@@ -26,11 +24,11 @@ interface Clinic {
   state?: string;
 }
 interface Service {
-  service_id: string | number; id?: string | number; service_name: string; name?: string; description?: string;
-  duration_minutes: number; duration_mins?: number; price: number;
+  service_id: number; service_name: string; description?: string;
+  duration_minutes: number; price: number;
 }
 interface Doctor {
-  doctor_id: string | number; id?: string | number; name: string; specialization?: string;
+  doctor_id: number; name: string; specialization?: string;
 }
 interface TimeSlot { time: string; available: boolean; }
 
@@ -64,20 +62,13 @@ const PublicBooking = () => {
   const fetchClinicData = async () => {
     try {
       setIsLoading(true);
-      const res = await publicAPI.getClinic(clinicSlug!);
-      
-      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
-      const payload = res.data?.data || res.data || {};
-      
-      if (payload.clinic) {
-        setClinic(payload.clinic);
-        setServices(Array.isArray(payload.services) ? payload.services : []);
-        setDoctors(Array.isArray(payload.doctors) ? payload.doctors : []);
-      } else {
-        toast.error('Clinic not found or inactive');
+      const response = await publicAPI.getClinicInfo(clinicSlug!);
+      if (response.data.success) {
+        setClinic(response.data.data.clinic);
+        setServices(response.data.data.services);
+        setDoctors(response.data.data.doctors || []);
       }
-    } catch (error) {
-      console.error('Failed to load clinic information:', error);
+    } catch {
       toast.error('Failed to load clinic information');
     } finally {
       setIsLoading(false);
@@ -89,13 +80,13 @@ const PublicBooking = () => {
     try {
       setIsLoadingSlots(true);
       setFormData(prev => ({ ...prev, appointment_time: '' }));
-      const bookingData = {
-        clinic_id: Number(clinic?.clinic_id || clinic?.id || 0),
-        date: formData.appointment_date,
+      const params: { clinic_id: number; date: string; service_id: number; doctor_id?: number } = {
+        clinic_id:  clinic.clinic_id,
+        date:       formData.appointment_date,
         service_id: parseInt(formData.service_id),
-        doctor_id: (formData.doctor_id && formData.doctor_id !== 'any') ? parseInt(formData.doctor_id) : undefined
       };
-      const response = await publicAPI.getAvailableSlots(bookingData);
+      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = parseInt(formData.doctor_id);
+      const response = await publicAPI.getAvailableSlots(params);
       if (response.data.success) {
         setAvailableSlots(response.data.data.slots);
       }
@@ -179,7 +170,7 @@ const PublicBooking = () => {
             <div className="bg-gray-50 rounded-lg p-4 mb-4 text-left">
               <p className="text-sm"><strong>Date:</strong> {new Date(formData.appointment_date).toLocaleDateString()}</p>
               <p className="text-sm"><strong>Time:</strong> {formData.appointment_time}</p>
-              <p className="text-sm"><strong>Service:</strong> {services.find(s => String(s?.service_id || '') === String(formData.service_id))?.service_name}</p>
+              <p className="text-sm"><strong>Service:</strong> {services.find(s => s.service_id.toString() === formData.service_id)?.service_name}</p>
             </div>
             <p className="text-sm text-gray-500">
               You will receive a confirmation message shortly.
@@ -284,8 +275,8 @@ const PublicBooking = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {services.map((service) => (
-                        <SelectItem key={String(service?.id || service?.service_id || "")} value={String(service?.id || service?.service_id || "")}>
-                          {service?.service_name || service?.name} ({service?.duration_minutes || service?.duration_mins} min) - ₹{service?.price}
+                        <SelectItem key={service.service_id} value={service.service_id.toString()}>
+                          {service.service_name} ({service.duration_minutes} min) — ₹{Number(service.price).toLocaleString()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -307,8 +298,8 @@ const PublicBooking = () => {
                       <SelectContent>
                         <SelectItem value="any">Any available doctor</SelectItem>
                         {doctors.map(d => (
-                          <SelectItem key={String(d?.id || d?.doctor_id || "")} value={String(d?.id || d?.doctor_id || "")}>
-                            {d?.name || 'Doctor'}{d?.specialization ? ` — ${d.specialization}` : ''}
+                          <SelectItem key={d.doctor_id} value={d.doctor_id.toString()}>
+                            {d.name}{d.specialization ? ` — ${d.specialization}` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
