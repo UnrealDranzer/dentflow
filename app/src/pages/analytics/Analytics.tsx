@@ -99,7 +99,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.today.total_appointments || 0}
+              {dashboardData?.today?.total_appointments ?? dashboardData?.monthlyStats?.total ?? 0}
             </div>
             <p className="text-xs text-gray-500 mt-1">Today's count</p>
           </CardContent>
@@ -114,9 +114,9 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.total_patients || 0}
+              {dashboardData?.total_patients ?? dashboardData?.totalPatients ?? 0}
             </div>
-            <p className="text-xs text-gray-500 mt-1">+{dashboardData?.new_patients_this_month || 0} this month</p>
+            <p className="text-xs text-gray-500 mt-1">+{dashboardData?.new_patients_this_month ?? 0} this month</p>
           </CardContent>
         </Card>
 
@@ -129,7 +129,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.monthly_revenue || 0)}
+              {formatCurrency(dashboardData?.monthly_revenue ?? dashboardData?.monthlyStats?.revenue ?? 0)}
             </div>
             <p className="text-xs text-gray-500 mt-1">This month</p>
           </CardContent>
@@ -144,7 +144,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.upcoming_appointments || 0}
+              {dashboardData?.upcoming_appointments ?? dashboardData?.upcomingCount ?? 0}
             </div>
             <p className="text-xs text-gray-500 mt-1">Next 7 days</p>
           </CardContent>

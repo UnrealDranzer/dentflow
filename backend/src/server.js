@@ -28,6 +28,9 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Enable trust proxy for Render deployment
+app.set('trust proxy', 1);
+
 // 1. helmet
 app.use(helmet());
 
