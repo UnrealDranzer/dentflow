@@ -109,6 +109,19 @@ const Dashboard = () => {
     );
   }
 
+  // REINFORCED SAFETY: Extract all stats into safe constants with multi-layered fallbacks
+  // This ensures no deep property access can throw during render.
+  const safeStats = {
+    today_total: (stats as any)?.today?.total_appointments ?? (stats as any)?.monthlyStats?.total ?? 0,
+    today_scheduled: (stats as any)?.today?.scheduled ?? 0,
+    today_completed: (stats as any)?.today?.completed ?? 0,
+    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0,
+    new_patients: stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0,
+    revenue: stats?.monthly_revenue ?? (stats as any)?.monthlyStats?.revenue ?? 0,
+  };
+
+  console.log("[DentFlow] Dashboard rendering with safety lockdown v4", { hasStats: !!stats });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -142,12 +155,11 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Safe access and fallback to monthlyStats.total if today is missing to prevent crash */}
             <div className="text-2xl font-bold">
-              {(stats as any)?.today?.total_appointments ?? (stats as any)?.monthlyStats?.total ?? 0}
+              {safeStats.today_total}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {(stats as any)?.today?.scheduled ?? 0} scheduled, {(stats as any)?.today?.completed ?? 0} completed
+              {safeStats.today_scheduled} scheduled, {safeStats.today_completed} completed
             </p>
           </CardContent>
         </Card>
@@ -161,7 +173,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0}
+              {safeStats.upcoming}
             </div>
             <p className="text-xs text-gray-500 mt-1">Next 7 days</p>
           </CardContent>
@@ -176,7 +188,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0}
+              {safeStats.new_patients}
             </div>
             <p className="text-xs text-gray-500 mt-1">This month</p>
           </CardContent>
@@ -191,7 +203,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(stats?.monthly_revenue ?? (stats as any)?.monthlyStats?.revenue ?? 0)}
+              {formatCurrency(safeStats.revenue)}
             </div>
             <p className="text-xs text-gray-500 mt-1">From completed appointments</p>
           </CardContent>
