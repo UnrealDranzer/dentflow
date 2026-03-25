@@ -17,7 +17,12 @@ export const getDoctors = async (req, res, next) => {
     sql += ' ORDER BY name ASC';
 
     const result = await query(sql, params);
-    res.json({ success: true, data: { doctors: result.rows } });
+    const doctors = (result.rows || []).map(r => ({
+      ...r,
+      id: String(r.id),
+      doctor_id: String(r.id)
+    }));
+    res.json({ success: true, data: { doctors } });
   } catch (error) {
     next(error);
   }

@@ -51,13 +51,16 @@ const Dashboard = () => {
         appointmentsAPI.getToday()
       ]);
 
-      if (overviewRes.data.success) {
-        setStats(overviewRes.data.data);
-      }
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const statsPayload = overviewRes.data?.data || overviewRes.data || {};
+      const todayPayload = todayRes.data?.data || todayRes.data || {};
+      
+      // Handle nested stats in payload if present
+      setStats(statsPayload.stats || statsPayload);
 
-      if (todayRes.data.success) {
-        setTodayAppointments(todayRes.data.data.appointments);
-      }
+      // Handle appointments array
+      const appts = todayPayload.appointments || todayPayload.today_appointments || todayPayload || [];
+      setTodayAppointments(Array.isArray(appts) ? appts : []);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -87,18 +90,24 @@ const Dashboard = () => {
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (!time) return '--:--';
+    try {
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours || '0'), parseInt(minutes || '0'));
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch (e) {
+      return time || '--:--';
+    }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: any) => {
+    const value = typeof amount === 'number' ? amount : parseFloat(amount || '0');
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(isNaN(value) ? 0 : value);
   };
 
   if (isLoading) {
@@ -112,12 +121,15 @@ const Dashboard = () => {
   // REINFORCED SAFETY: Extract all stats into safe constants with multi-layered fallbacks
   // This ensures no deep property access can throw during render.
   const safeStats = {
-    today_total: (stats as any)?.today?.total_appointments ?? (stats as any)?.monthlyStats?.total ?? 0,
-    today_scheduled: (stats as any)?.today?.scheduled ?? 0,
-    today_completed: (stats as any)?.today?.completed ?? 0,
-    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0,
-    new_patients: stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0,
-    revenue: stats?.monthly_revenue ?? (stats as any)?.monthlyStats?.revenue ?? 0,
+    today_total: (stats as any)?.today?.total_appointments ?? 
+                 (stats as any)?.total_appointments ?? 
+                 (stats as any)?.today_total ?? 
+                 (stats as any)?.monthlyStats?.total ?? 0,
+    today_scheduled: (stats as any)?.today?.scheduled ?? (stats as any)?.scheduled ?? 0,
+    today_completed: (stats as any)?.today?.completed ?? (stats as any)?.completed ?? 0,
+    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcoming_count ?? (stats as any)?.upcomingCount ?? 0,
+    new_patients: stats?.new_patients_this_month ?? (stats as any)?.new_patients ?? (stats as any)?.totalPatients ?? 0,
+    revenue: stats?.monthly_revenue ?? (stats as any)?.revenue ?? (stats as any)?.monthlyStats?.revenue ?? 0,
   };
 
   console.log("[DentFlow] Dashboard rendering with safety lockdown v4", { hasStats: !!stats });
@@ -235,33 +247,36 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {todayAppointments.map((appointment) => (
-                <div
-                  key={appointment.appointment_id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div 
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
-                      style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
-                    >
-                      {formatTime(appointment.appointment_time)}
+              {todayAppointments.map((appointment) => {
+                const id = String(appointment?.id || appointment?.appointment_id || "");
+                return (
+                  <div
+                    key={id || Math.random()}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                        style={{ backgroundColor: appointment?.color_code || '#3B82F6' }}
+                      >
+                        {formatTime(appointment?.appointment_time)}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{appointment?.patient_name || 'Generic Patient'}</h4>
+                        <p className="text-sm text-gray-500">{appointment?.service_name || 'Service'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{appointment.patient_name}</h4>
-                      <p className="text-sm text-gray-500">{appointment.service_name}</p>
+                    <div className="flex items-center gap-3">
+                      {getStatusBadge(appointment?.status || 'scheduled')}
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={`/appointments/${id}`}>
+                          View
+                        </Link>
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {getStatusBadge(appointment.status)}
-                    <Button asChild variant="ghost" size="sm">
-                      <Link to={`/appointments/${appointment.appointment_id}`}>
-                        View
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

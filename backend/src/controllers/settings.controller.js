@@ -101,9 +101,9 @@ export const getPublicClinicBySlug = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        clinic,
-        services: servicesRes.rows,
-        doctors: doctorsRes.rows,
+        clinic: { ...clinic, id: String(clinic.id), clinic_id: String(clinic.id) },
+        services: (servicesRes.rows || []).map(r => ({ ...r, id: String(r.id), service_id: String(r.id) })),
+        doctors: (doctorsRes.rows || []).map(r => ({ ...r, id: String(r.id), doctor_id: String(r.id) })),
       }
     });
   } catch (error) {

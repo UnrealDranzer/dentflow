@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 
 interface Appointment {
   appointment_id: number;
+  id?: string | number;
   patient_name: string;
   patient_phone: string;
   service_name: string;
@@ -56,10 +57,11 @@ const Appointments = () => {
       if (statusFilter !== 'all') params.status = statusFilter;
       if (dateFilter) params.date = dateFilter;
       
-      const response = await appointmentsAPI.getAll(params);
-      if (response.data.success) {
-        setAppointments(response.data.data.appointments);
-      }
+      const res = await appointmentsAPI.getAll(params);
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = res.data?.data || res.data || {};
+      const appts = payload.appointments || payload;
+      setAppointments(Array.isArray(appts) ? appts : []);
     } catch (error) {
       console.error('Failed to fetch appointments:', error);
       toast.error('Failed to load appointments');
@@ -68,11 +70,11 @@ const Appointments = () => {
     }
   };
 
-  const filteredAppointments = appointments.filter(appointment =>
-    appointment.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    appointment.service_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    appointment.patient_phone.includes(searchQuery)
-  );
+  const filteredAppointments = Array.isArray(appointments) ? appointments.filter(appointment =>
+    (appointment?.patient_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (appointment?.service_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (appointment?.patient_phone || '').includes(searchQuery)
+  ) : [];
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
@@ -95,30 +97,42 @@ const Appointments = () => {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (!dateString) return '---';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString || '---';
+      
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow';
+      }
+
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return dateString || '---';
     }
-
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (!time) return '--:--';
+    try {
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours || '0'), parseInt(minutes || '0'));
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch (e) {
+      return time || '--:--';
+    }
   };
 
   if (isLoading) {
@@ -200,31 +214,31 @@ const Appointments = () => {
             <div className="space-y-3">
               {filteredAppointments.map((appointment) => (
                 <div
-                  key={appointment.appointment_id}
+                  key={appointment?.appointment_id || appointment?.id || Math.random()}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div
                       className="w-14 h-14 rounded-lg flex flex-col items-center justify-center text-white"
-                      style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
+                      style={{ backgroundColor: appointment?.color_code || '#3B82F6' }}
                     >
-                      <span className="text-xs font-medium">
-                        {formatDate(appointment.appointment_date)}
+                      <span className="text-[10px] font-medium">
+                        {formatDate(appointment?.appointment_date || '')}
                       </span>
-                      <span className="text-sm font-bold">
-                        {formatTime(appointment.appointment_time)}
+                      <span className="text-xs font-bold">
+                        {formatTime(appointment?.appointment_time || '')}
                       </span>
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{appointment.patient_name}</h4>
-                      <p className="text-sm text-gray-500">{appointment.service_name}</p>
-                      <p className="text-xs text-gray-400">{appointment.duration_minutes} minutes</p>
+                      <h4 className="font-semibold text-gray-900">{appointment?.patient_name || 'Generic Patient'}</h4>
+                      <p className="text-sm text-gray-500">{appointment?.service_name || 'Service'}</p>
+                      <p className="text-xs text-gray-400">{appointment?.duration_minutes || 0} minutes</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {getStatusBadge(appointment.status)}
+                    {getStatusBadge(appointment?.status || 'scheduled')}
                     <Button asChild variant="ghost" size="sm">
-                      <Link to={`/appointments/${appointment.appointment_id}`}>
+                      <Link to={`/appointments/${appointment?.appointment_id || appointment?.id || ''}`}>
                         View
                       </Link>
                     </Button>
