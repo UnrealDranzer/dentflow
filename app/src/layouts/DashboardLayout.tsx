@@ -23,9 +23,11 @@ import {
   Menu,
   ChevronDown,
   LogOut,
-  Bell
+  Bell,
+  CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TrialBanner } from '@/components/layout/TrialBanner';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -34,6 +36,7 @@ const navItems = [
   { path: '/doctors', label: 'Doctors', icon: UserRound },
   { path: '/services', label: 'Services', icon: Stethoscope },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { path: '/billing', label: 'Billing', icon: CreditCard },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -89,7 +92,7 @@ const DashboardLayout = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col bg-white border-r border-gray-200 fixed h-full">
+      <aside className="hidden sm:flex w-64 flex-col bg-white border-r border-gray-200 fixed h-full">
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <Link to="/dashboard" className="flex items-center gap-3">
@@ -139,7 +142,7 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
+      <div className="sm:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
         <div className="flex items-center justify-between p-4">
           <Link to="/dashboard" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -201,11 +204,30 @@ const DashboardLayout = () => {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 pt-16 lg:pt-0">
-        <div className="p-4 lg:p-8">
+      <main className="flex-1 sm:ml-64 pt-16 pb-16 sm:pb-0 sm:pt-0">
+        <TrialBanner />
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
           <Outlet />
         </div>
       </main>
+      {/* Mobile Bottom Tab Bar */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 flex justify-around items-center h-16 pb-safe px-2">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex flex-col items-center justify-center w-full h-full ${
+                isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Icon className="w-6 h-6" />
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 };

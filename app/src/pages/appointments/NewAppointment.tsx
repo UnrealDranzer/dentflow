@@ -154,7 +154,7 @@ const NewAppointment = () => {
 
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Patient */}
             <div className="space-y-2">
               <Label>
@@ -236,7 +236,7 @@ const NewAppointment = () => {
 
             {/* Time Slots */}
             {formData.service_id && formData.appointment_date && (
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-1 sm:col-span-2">
                 <Label>
                   <Clock className="w-4 h-4 inline mr-2" />
                   Time Slot *
@@ -277,7 +277,7 @@ const NewAppointment = () => {
             )}
 
             {/* Notes */}
-            <div className="space-y-2">
+            <div className="space-y-2 col-span-1 sm:col-span-2">
               <Label>Notes (Optional)</Label>
               <Textarea
                 placeholder="Any additional notes..."
@@ -288,13 +288,13 @@ const NewAppointment = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-4">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)}>
+            <div className="flex gap-4 col-span-1 sm:col-span-2">
+              <Button type="button" variant="outline" className="flex-1 h-11 sm:h-9" onClick={() => navigate(-1)}>
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="flex-1"
+                className="flex-1 h-11 sm:h-9"
                 disabled={isSubmitting || !formData.appointment_time}
               >
                 {isSubmitting ? (

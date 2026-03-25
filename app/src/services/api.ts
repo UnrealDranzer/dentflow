@@ -165,6 +165,23 @@ export const analyticsAPI = {
     api.get('/analytics/patients'),
 };
 
+// ─── Billing API ──────────────────────────────────────────────────────────────
+export const billingAPI = {
+  getStatus: () =>
+    api.get('/billing/status'),
+  getPlans: () =>
+    api.get('/billing/plans'),
+  createOrder: (data: { plan: string }) =>
+    api.post('/billing/create-order', data),
+  verifyPayment: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    plan: string;
+  }) =>
+    api.post('/billing/verify-payment', data),
+};
+
 // ─── Public API (no auth required) ───────────────────────────────────────────
 export const publicAPI = {
   getClinicInfo: (clinicSlug: string) =>
