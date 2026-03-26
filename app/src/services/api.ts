@@ -1,7 +1,19 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
+const IS_PRODUCTION = window.location.hostname.endsWith('vercel.app');
+
+if (IS_PRODUCTION && (!VITE_API_URL || VITE_API_URL.includes('localhost'))) {
+  console.warn(
+    '[DentFlow] CRITICAL: Running on Vercel but VITE_API_URL is missing or pointing to localhost. ' +
+    'Please set VITE_API_URL in your Vercel Project Settings to your Render backend URL.'
+  );
+}
+
+const API_BASE_URL = VITE_API_URL || 'http://localhost:5000/api';
+
 
 // Create axios instance
 const api = axios.create({
