@@ -51,13 +51,16 @@ const Dashboard = () => {
         appointmentsAPI.getToday()
       ]);
 
-      if (overviewRes.data.success) {
-        setStats(overviewRes.data.data);
-      }
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const statsPayload = overviewRes.data?.data || overviewRes.data || {};
+      const todayPayload = todayRes.data?.data || todayRes.data || {};
+      
+      // Prefer nested 'stats' if available
+      setStats(statsPayload.stats || statsPayload);
 
-      if (todayRes.data.success) {
-        setTodayAppointments(todayRes.data.data.appointments);
-      }
+      // Prefer nested 'appointments' or the array itself
+      const appts = todayPayload.appointments || todayPayload.today_appointments || (Array.isArray(todayPayload) ? todayPayload : []);
+      setTodayAppointments(appts);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard data');

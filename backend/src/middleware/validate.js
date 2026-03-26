@@ -40,14 +40,25 @@ export const patientSchema = z.object({
 });
 
 export const appointmentSchema = z.object({
-  patientId: z.string().uuid('Invalid patient ID'),
-  dentistId: z.string().uuid('Invalid dentist ID').optional().or(z.literal(null)),
-  scheduledAt: z.string().datetime({ offset: true }).or(z.string()),
-  durationMins: z.number().int().positive().default(30),
+  patient_id: z.string().uuid().optional(),
+  patientId: z.string().uuid().optional(),
+  service_id: z.string().uuid().optional(),
+  serviceId: z.string().uuid().optional(),
+  doctor_id: z.string().uuid().optional().or(z.literal('any')).or(z.literal('')),
+  dentistId: z.string().uuid().optional().or(z.literal(null)),
+  appointment_date: z.string().optional(),
+  appointment_time: z.string().optional(),
+  scheduledAt: z.string().datetime({ offset: true }).or(z.string()).optional(),
+  duration_mins: z.number().int().positive().optional(),
+  durationMins: z.number().int().positive().optional(),
   type: z.string().optional(),
   notes: z.string().optional(),
   amount: z.number().nonnegative().optional(),
+}).refine(data => (data.patient_id || data.patientId) && (data.service_id || data.serviceId || data.type), {
+  message: "Patient and Service are required",
+  path: ["patient_id"]
 });
+
 
 export const appointmentUpdateSchema = z.object({
   status: z.enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),

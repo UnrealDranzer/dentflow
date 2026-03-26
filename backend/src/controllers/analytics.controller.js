@@ -42,20 +42,64 @@ export const getDashboardAnalytics = async (req, res, next) => {
       )
     ]);
 
+    // SYSTEM-WIDE NORMALIZATION: { success: true, data: { ... } }
     res.json({
       success: true,
       data: {
-        totalPatients: parseInt(patientsRec.rows[0].count, 10),
-        monthlyStats: {
-          total: parseInt(statsRec.rows[0].total, 10),
-          completed: parseInt(statsRec.rows[0].completed, 10),
-          no_shows: parseInt(statsRec.rows[0].no_shows, 10),
-          revenue: parseFloat(statsRec.rows[0].revenue)
+        totalPatients: parseInt(patientsRec.rows[0].count, 10) || 0,
+        stats: {
+          today: {
+            total_appointments: parseInt(todayRec.rows.length, 10) || 0,
+            scheduled: parseInt(todayRec.rows.filter(r => r.status === 'scheduled').length, 10) || 0,
+            completed: parseInt(todayRec.rows.filter(r => r.status === 'completed').length, 10) || 0,
+            cancelled: 0 // Controller filters out cancelled
+          },
+          monthlyStats: {
+            total: parseInt(statsRec.rows[0].total, 10) || 0,
+            completed: parseInt(statsRec.rows[0].completed, 10) || 0,
+            no_shows: parseInt(statsRec.rows[0].no_shows, 10) || 0,
+            revenue: parseFloat(statsRec.rows[0].revenue) || 0
+          }
         },
-        todayAppointments: todayRec.rows,
-        upcomingCount: parseInt(upcomingRec.rows[0].count, 10)
+        todayAppointments: todayRec.rows || [],
+        upcomingCount: parseInt(upcomingRec.rows[0].count, 10) || 0
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAppointmentStats = async (req, res, next) => {
+  try {
+    const clinicId = req.clinicId;
+    const stats = await query(
+      `SELECT status, COUNT(*) as count
+       FROM appointments
+       WHERE clinic_id = $1
+       GROUP BY status`,
+      [clinicId]
+    );
+    res.json({ success: true, data: { stats: stats.rows } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getRevenueAnalytics = async (req, res, next) => {
+  try {
+    const clinicId = req.clinicId;
+    const revenue = await query(
+      `SELECT date_trunc('month', scheduled_at) as month,
+              SUM(amount) as total
+       FROM appointments
+       WHERE clinic_id = $1 AND status = 'completed'
+       GROUP BY month
+       ORDER BY month DESC
+       LIMIT 6`,
+      [clinicId]
+    );
+    res.json({ success: true, data: { revenue: revenue.rows } });
   } catch (error) {
     next(error);
   }

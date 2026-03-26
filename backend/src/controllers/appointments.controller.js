@@ -1,5 +1,50 @@
 import { query, withTransaction } from '../config/db.js';
 
+// ─── Helpers ───────────────────
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const [h, m] = String(t).split(':').map(Number);
+  return h * 60 + m;
+};
+
+const minutesToTime = (m) => {
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+};
+
+const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, date, timezone = 'Asia/Kolkata', breakStart, breakEnd, interval) => {
+  const slots = [];
+  const startMin = timeToMinutes(workingStart);
+  const endMin = timeToMinutes(workingEnd);
+  const now = new Date();
+  const isToday = date === now.toISOString().split('T')[0];
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (let t = startMin; t + serviceDuration <= endMin; t += interval) {
+    if (isToday && t <= nowMinutes) continue;
+    let available = true;
+    for (const a of existing) {
+      const as = timeToMinutes(a.appointment_time);
+      const ae = as + a.duration_mins;
+      if (t < ae && t + serviceDuration > as) { available = false; break; }
+    }
+    slots.push({ time: minutesToTime(t), available });
+  }
+  return slots;
+};
+
+const parseWorkingDays = (val) => {
+  if (!val) return [1,2,3,4,5,6];
+  try { return typeof val === 'string' ? JSON.parse(val) : val; } catch (_) { return [1,2,3,4,5,6]; }
+};
+
+const isValidUUID = (id) => {
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return regex.test(id);
+};
+
+
 export const getAppointments = async (req, res, next) => {
   try {
     const { date, dentistId, status, limit = 50, offset = 0 } = req.query;
@@ -78,38 +123,55 @@ export const getAppointment = async (req, res, next) => {
 
 export const createAppointment = async (req, res, next) => {
   try {
-    const { patientId, dentistId, scheduledAt, durationMins, type, notes, amount } = req.body;
+    const { 
+      patient_id, patientId, 
+      service_id, serviceId,
+      doctor_id, dentistId, 
+      appointment_date, scheduledAt,
+      appointment_time,
+      duration_mins, durationMins, 
+      type, notes, amount 
+    } = req.body;
+
+
+    const pId = patient_id || patientId;
+    const dId = doctor_id || dentistId;
+    const sAt = appointment_date && appointment_time ? `${appointment_date} ${appointment_time}` : (scheduledAt);
+    const dMins = duration_mins || durationMins;
+
 
     // Verify patient belongs to this clinic
     const patientCheck = await query(
       'SELECT id FROM patients WHERE id = $1 AND clinic_id = $2',
-      [patientId, req.clinicId]
+      [pId, req.clinicId]
     );
     if (patientCheck.rows.length === 0) {
       return res.status(403).json({ success: false, message: 'Patient not found in this clinic' });
     }
 
     // Verify dentist belongs to this clinic
-    if (dentistId) {
+    if (dId && dId !== 'any') {
       const dentistCheck = await query(
-        "SELECT id FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'dentist'",
-        [dentistId, req.clinicId]
+        "SELECT id FROM doctors WHERE id = $1 AND clinic_id = $2",
+        [dId, req.clinicId]
       );
       if (dentistCheck.rows.length === 0) {
-        return res.status(403).json({ success: false, message: 'Dentist not found or invalid role' });
+        return res.status(403).json({ success: false, message: 'Doctor not found or invalid' });
       }
     }
 
+
     const appointment = await withTransaction(async (client) => {
       // Prevent double-booking with SELECT FOR UPDATE
-      if (dentistId && scheduledAt) {
+      if (dId && dId !== 'any' && sAt) {
         const slotCheck = await client.query(
           `SELECT id FROM appointments
            WHERE dentist_id = $1 AND scheduled_at = $2
            AND status NOT IN ('cancelled', 'no_show')
            FOR UPDATE`,
-          [dentistId, scheduledAt]
+          [dId, sAt]
         );
+
         if (slotCheck.rows.length > 0) {
           const err = new Error('This time slot is already booked');
           err.status = 409;
@@ -119,12 +181,14 @@ export const createAppointment = async (req, res, next) => {
 
       const insertRes = await client.query(
         `INSERT INTO appointments
-         (clinic_id, patient_id, dentist_id, scheduled_at, duration_mins, status, type, notes, amount, created_by)
-         VALUES ($1, $2, $3, $4, $5, 'scheduled', $6, $7, $8, $9) RETURNING *`,
-        [req.clinicId, patientId, dentistId || null, scheduledAt, durationMins || 30, type || null, notes || null, amount || null, req.user.id]
+         (clinic_id, patient_id, dentist_id, scheduled_at, duration_mins, status, type, notes, amount, created_by, service_id)
+         VALUES ($1, $2, $3, $4, $5, 'scheduled', $6, $7, $8, $9, $10) RETURNING *`,
+        [req.clinicId, pId, (dId === 'any' ? null : dId), sAt, dMins || 30, type || null, notes || null, amount || null, req.user.id, (service_id || serviceId)]
       );
+
       return insertRes.rows[0];
     });
+
 
     res.status(201).json({ success: true, data: { appointment } });
   } catch (error) {
@@ -181,3 +245,93 @@ export const cancelAppointment = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getAvailableSlots = async (req, res, next) => {
+  try {
+    const { date, service_id, doctor_id } = req.query;
+    const clinicId = req.clinicId;
+
+    if (!date || !service_id) {
+      return res.status(400).json({ success: false, message: 'date and service_id are required.' });
+    }
+
+    if (!isValidUUID(service_id)) {
+      return res.status(400).json({ success: false, message: 'Invalid service_id format. Expected UUID.' });
+    }
+
+    if (doctor_id && doctor_id !== 'any' && !isValidUUID(doctor_id)) {
+      return res.status(400).json({ success: false, message: 'Invalid doctor_id format. Expected UUID.' });
+    }
+
+
+    let start_time, end_time, working_days, break_start, break_end, slot_interval;
+    let timezone = 'Asia/Kolkata';
+
+    if (doctor_id && doctor_id !== 'any') {
+      const doctorRes = await query(
+        `SELECT working_days, start_time, end_time, is_active
+         FROM doctors WHERE id = $1 AND clinic_id = $2`,
+        [doctor_id, clinicId]
+      );
+
+      if (doctorRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Doctor not found.' });
+      const doctor = doctorRes.rows[0];
+      if (!doctor.is_active) return res.json({ success: true, data: { slots: [] } });
+
+      working_days = doctor.working_days;
+      start_time = doctor.start_time || '09:00:00';
+      end_time = doctor.end_time || '18:00:00';
+    } else {
+      const clinicRes = await query(
+        'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE id = $1',
+        [clinicId]
+      );
+
+      if (clinicRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Clinic not found.' });
+      const clinic = clinicRes.rows[0];
+
+      working_days = clinic.working_days;
+      start_time = clinic.working_hours_start || '09:00:00';
+      end_time = clinic.working_hours_end || '18:00:00';
+      slot_interval = clinic.slot_interval_minutes;
+      timezone = clinic.timezone || 'Asia/Kolkata';
+    }
+
+    const wDays = parseWorkingDays(working_days);
+    const selectedDay = new Date(date).getDay();
+
+    if (!wDays.includes(selectedDay)) return res.json({ success: true, data: { slots: [], message: 'Clinic or doctor is closed on this day.' } });
+
+
+
+    const serviceRes = await query(
+      'SELECT duration_mins FROM services WHERE id = $1 AND clinic_id = $2 AND is_active = true',
+      [service_id, clinicId]
+    );
+    if (serviceRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Service not found.' });
+    const duration = serviceRes.rows[0].duration_mins;
+
+    let bookedSql = `
+      SELECT scheduled_at::time as appointment_time, duration_mins
+      FROM appointments
+      WHERE clinic_id = $1 AND scheduled_at::date = $2 AND status IN ('scheduled','confirmed')
+    `;
+    const bookedParams = [clinicId, date];
+    if (doctor_id && doctor_id !== 'any') {
+      bookedSql += ' AND dentist_id = $3';
+      bookedParams.push(doctor_id);
+    }
+
+    const bookedRes = await query(bookedSql, bookedParams);
+    
+    const slots = generateTimeSlots(
+      start_time, end_time, duration, bookedRes.rows, date, timezone,
+      break_start, break_end, slot_interval || 30
+    );
+
+    res.json({ success: true, data: { date, slots } });
+  } catch (error) {
+    next(error);
+  }
+};
+

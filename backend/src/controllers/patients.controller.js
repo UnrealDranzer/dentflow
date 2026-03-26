@@ -4,7 +4,7 @@ export const getPatients = async (req, res, next) => {
   try {
     const { search, limit = 50, offset = 0 } = req.query;
 
-    let sql = 'SELECT * FROM patients WHERE clinic_id = $1';
+    let sql = 'SELECT *, id AS patient_id FROM patients WHERE clinic_id = $1';
     let countSql = 'SELECT COUNT(*) as exact_count FROM patients WHERE clinic_id = $1';
     const params = [req.clinicId];
 
@@ -31,7 +31,7 @@ export const getPatient = async (req, res, next) => {
     const { id } = req.params;
 
     const patientRes = await query(
-      'SELECT * FROM patients WHERE id = $1 AND clinic_id = $2',
+      'SELECT *, id AS patient_id FROM patients WHERE id = $1 AND clinic_id = $2',
       [id, req.clinicId]
     );
 
@@ -66,7 +66,7 @@ export const createPatient = async (req, res, next) => {
 
     const result = await query(
       `INSERT INTO patients (clinic_id, name, phone, email, dob, gender, address, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *, id AS patient_id`,
       [req.clinicId, name, phone, email || null, dob || null, gender || null, address || null, notes || null, req.user.id]
     );
 
@@ -92,7 +92,7 @@ export const updatePatient = async (req, res, next) => {
            notes      = COALESCE($7, notes),
            updated_at = NOW()
        WHERE id = $8 AND clinic_id = $9
-       RETURNING *`,
+       RETURNING *, id AS patient_id`,
       [name, phone, email, dob, gender, address, notes, id, req.clinicId]
     );
 

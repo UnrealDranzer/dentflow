@@ -60,9 +60,11 @@ const Services = () => {
     try {
       setIsLoading(true);
       const response = await servicesAPI.getAll({ active_only: false });
-      if (response.data.success) {
-        setServices(response.data.data.services);
-      }
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const svcs = payload.services || (Array.isArray(payload) ? payload : []);
+      setServices(svcs);
     } catch (error) {
       console.error('Failed to fetch services:', error);
       toast.error('Failed to load services');

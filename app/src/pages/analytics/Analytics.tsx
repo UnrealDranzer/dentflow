@@ -46,17 +46,10 @@ const Analytics = () => {
         analyticsAPI.getRevenueAnalytics()
       ]);
 
-      if (overviewRes.data.success) {
-        setDashboardData(overviewRes.data.data);
-      }
-
-      if (appointmentRes.data.success) {
-        setAppointmentStats(appointmentRes.data.data);
-      }
-
-      if (revenueRes.data.success) {
-        setRevenueData(revenueRes.data.data);
-      }
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      setDashboardData(overviewRes.data?.data || overviewRes.data || {});
+      setAppointmentStats(appointmentRes.data?.data || appointmentRes.data || {});
+      setRevenueData(revenueRes.data?.data || revenueRes.data || {});
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {

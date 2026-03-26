@@ -70,10 +70,16 @@ const PatientDetail = () => {
     try {
       setIsLoading(true);
       const response = await patientsAPI.getById(Number(id));
-      if (response.data.success) {
-        setPatient(response.data.data.patient);
-        setAppointments(response.data.data.appointments);
-        setEditedPatient(response.data.data.patient);
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const patientData = payload.patient || payload;
+      const apptsData = payload.appointments || [];
+
+      if (patientData) {
+        setPatient(patientData);
+        setAppointments(Array.isArray(apptsData) ? apptsData : []);
+        setEditedPatient(patientData);
       }
     } catch (error) {
       console.error('Failed to fetch patient:', error);

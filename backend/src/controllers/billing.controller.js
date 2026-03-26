@@ -95,9 +95,19 @@ export const createOrder = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid plan selected' });
     }
 
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!key_id || !key_secret || key_id.includes('your_razorpay')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Razorpay keys are not configured. Please update your .env file.' 
+      });
+    }
+
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+      key_id,
+      key_secret,
     });
 
     const order = await razorpay.orders.create({

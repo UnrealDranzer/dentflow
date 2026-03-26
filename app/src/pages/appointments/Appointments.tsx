@@ -57,9 +57,11 @@ const Appointments = () => {
       if (dateFilter) params.date = dateFilter;
       
       const response = await appointmentsAPI.getAll(params);
-      if (response.data.success) {
-        setAppointments(response.data.data.appointments);
-      }
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const appts = payload.appointments || (Array.isArray(payload) ? payload : []);
+      setAppointments(appts);
     } catch (error) {
       console.error('Failed to fetch appointments:', error);
       toast.error('Failed to load appointments');

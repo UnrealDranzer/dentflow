@@ -78,11 +78,11 @@ const NewAppointment = () => {
       setAvailableSlots([]);
       setSlotMessage('');
 
-      const params: { date: string; service_id: number; doctor_id?: number } = {
+      const params: { date: string; service_id: string; doctor_id?: string } = {
         date:       formData.appointment_date,
-        service_id: parseInt(formData.service_id),
+        service_id: formData.service_id,
       };
-      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = parseInt(formData.doctor_id);
+      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = formData.doctor_id;
 
       const res = await appointmentsAPI.getAvailableSlots(params);
       if (res.data.success) {
@@ -105,9 +105,9 @@ const NewAppointment = () => {
     try {
       setIsSubmitting(true);
       const res = await appointmentsAPI.create({
-        patient_id:       parseInt(formData.patient_id),
-        service_id:       parseInt(formData.service_id),
-        doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? parseInt(formData.doctor_id) : undefined,
+        patient_id:       formData.patient_id,
+        service_id:       formData.service_id,
+        doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? formData.doctor_id : undefined,
         appointment_date: formData.appointment_date,
         appointment_time: formData.appointment_time,
         notes:            formData.notes || undefined,

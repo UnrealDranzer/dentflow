@@ -53,14 +53,21 @@ export const getDashboard = async (req, res, next) => {
 
     const s = statsRes.rows[0];
 
+    // SYSTEM-WIDE NORMALIZATION: { success: true, data: { ... } }
     res.json({
       success: true,
       data: {
-        today_appointments: todayRes.rows,
-        upcoming_appointments: upcomingRes.rows,
-        recent_patients: recentPatientsRes.rows,
+        today_appointments: todayRes.rows || [],
+        upcoming_appointments: upcomingRes.rows || [],
+        recent_patients: recentPatientsRes.rows || [],
         stats: {
-          today_count:    todayRes.rows.length,
+          today: {
+            total_appointments: parseInt(todayRes.rows.length, 10) || 0,
+            scheduled: parseInt(todayRes.rows.filter(r => r.status === 'scheduled').length, 10) || 0,
+            completed: parseInt(todayRes.rows.filter(r => r.status === 'completed').length, 10) || 0,
+            cancelled: 0
+          },
+          today_count: todayRes.rows.length, // backward compat
           completed:      parseInt(s.completed_count || 0, 10),
           no_show:        parseInt(s.no_show_count   || 0, 10),
           upcoming:       parseInt(s.upcoming_count  || 0, 10),

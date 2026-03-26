@@ -184,7 +184,7 @@ export const billingAPI = {
 
 // ─── Public API (no auth required) ───────────────────────────────────────────
 export const publicAPI = {
-  getClinicInfo: (clinicSlug: string) =>
+  getClinic: (clinicSlug: string) =>
     axios.get(`${API_BASE_URL}/public/clinic/${clinicSlug}`),
   getAvailableSlots: (params: { clinic_id: number; date: string; service_id: number; doctor_id?: number }) =>
     axios.get(`${API_BASE_URL}/public/available-slots`, { params }),
@@ -194,8 +194,10 @@ export const publicAPI = {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Clinic {
-  clinic_id: number;
+  clinic_id: string | number;
+  id?: string | number;
   clinic_name: string;
+  name?: string;
   clinic_slug?: string;
   email: string;
   phone: string;
@@ -219,7 +221,8 @@ export interface Clinic {
 }
 
 export interface Patient {
-  patient_id: number;
+  patient_id: string | number;
+  id?: string | number;
   clinic_id: number;
   name: string;
   phone: string;
@@ -239,7 +242,8 @@ export interface Patient {
 }
 
 export interface Service {
-  service_id: number;
+  service_id: string | number;
+  id?: string | number;
   clinic_id: number;
   service_name: string;
   description?: string;
@@ -251,7 +255,8 @@ export interface Service {
 }
 
 export interface Doctor {
-  doctor_id: number;
+  doctor_id: string | number;
+  id?: string | number;
   clinic_id: number;
   name: string;
   specialization?: string;
@@ -273,7 +278,8 @@ export interface Doctor {
 }
 
 export interface Appointment {
-  appointment_id: number;
+  appointment_id: string | number;
+  id?: string | number;
   clinic_id: number;
   patient_id: number;
   service_id: number;

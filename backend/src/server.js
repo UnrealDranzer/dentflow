@@ -18,7 +18,7 @@ import doctorsRoutes from './routes/doctors.routes.js';
 import servicesRoutes from './routes/services.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
-import { getPublicClinicBySlug } from './controllers/settings.controller.js';
+import { getPublicClinicBySlug, getPublicAvailableSlots, createPublicAppointment } from './controllers/settings.controller.js';
 
 
 import { authenticate } from './middleware/authenticate.js';
@@ -86,8 +86,10 @@ app.get('/health', async (req, res) => {
 // Public routes
 app.use('/api/auth', authRoutes);
 app.use('/api/billing', billingRoutes);
-app.get('/api/book/:slug', getPublicClinicBySlug);
 app.get('/api/public/clinic/:slug', getPublicClinicBySlug);
+app.get('/api/public/available-slots', getPublicAvailableSlots);
+app.post('/api/public/book-appointment', createPublicAppointment);
+app.get('/api/book/:slug', getPublicClinicBySlug); // Legacy redirect
 
 // Protected routes setup
 const protectedMiddleware = [authenticate, tenantGuard, subscriptionGuard];
