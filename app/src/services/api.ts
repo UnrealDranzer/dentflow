@@ -1,7 +1,19 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
+const IS_PRODUCTION = window.location.hostname.endsWith('vercel.app');
+
+if (IS_PRODUCTION && (!VITE_API_URL || VITE_API_URL.includes('localhost'))) {
+  console.warn(
+    '[DentFlow] CRITICAL: Running on Vercel but VITE_API_URL is missing or pointing to localhost. ' +
+    'Please set VITE_API_URL in your Vercel Project Settings to your Render backend URL.'
+  );
+}
+
+const API_BASE_URL = VITE_API_URL || 'http://localhost:5000/api';
+
 
 // Create axios instance
 const api = axios.create({
@@ -165,9 +177,26 @@ export const analyticsAPI = {
     api.get('/analytics/patients'),
 };
 
+// ─── Billing API ──────────────────────────────────────────────────────────────
+export const billingAPI = {
+  getStatus: () =>
+    api.get('/billing/status'),
+  getPlans: () =>
+    api.get('/billing/plans'),
+  createOrder: (data: { plan: string }) =>
+    api.post('/billing/create-order', data),
+  verifyPayment: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    plan: string;
+  }) =>
+    api.post('/billing/verify-payment', data),
+};
+
 // ─── Public API (no auth required) ───────────────────────────────────────────
 export const publicAPI = {
-  getClinicInfo: (clinicSlug: string) =>
+  getClinic: (clinicSlug: string) =>
     axios.get(`${API_BASE_URL}/public/clinic/${clinicSlug}`),
   getAvailableSlots: (params: { clinic_id: number; date: string; service_id: number; doctor_id?: number }) =>
     axios.get(`${API_BASE_URL}/public/available-slots`, { params }),
@@ -177,8 +206,10 @@ export const publicAPI = {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Clinic {
-  clinic_id: number;
+  clinic_id: string | number;
+  id?: string | number;
   clinic_name: string;
+  name?: string;
   clinic_slug?: string;
   email: string;
   phone: string;
@@ -202,7 +233,8 @@ export interface Clinic {
 }
 
 export interface Patient {
-  patient_id: number;
+  patient_id: string | number;
+  id?: string | number;
   clinic_id: number;
   name: string;
   phone: string;
@@ -222,7 +254,8 @@ export interface Patient {
 }
 
 export interface Service {
-  service_id: number;
+  service_id: string | number;
+  id?: string | number;
   clinic_id: number;
   service_name: string;
   description?: string;
@@ -234,7 +267,8 @@ export interface Service {
 }
 
 export interface Doctor {
-  doctor_id: number;
+  doctor_id: string | number;
+  id?: string | number;
   clinic_id: number;
   name: string;
   specialization?: string;
@@ -256,7 +290,8 @@ export interface Doctor {
 }
 
 export interface Appointment {
-  appointment_id: number;
+  appointment_id: string | number;
+  id?: string | number;
   clinic_id: number;
   patient_id: number;
   service_id: number;

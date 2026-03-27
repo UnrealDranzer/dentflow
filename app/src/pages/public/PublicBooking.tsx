@@ -14,8 +14,10 @@ import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, U
 import { toast } from 'sonner';
 
 interface Clinic {
-  clinic_id: number;
+  clinic_id: string | number;
+  id?: string | number;
   clinic_name: string;
+  name?: string;
   phone: string;
   working_hours_start: string;
   working_hours_end: string;
@@ -24,11 +26,11 @@ interface Clinic {
   state?: string;
 }
 interface Service {
-  service_id: number; service_name: string; description?: string;
-  duration_minutes: number; price: number;
+  service_id: string | number; id?: string | number; service_name: string; name?: string; description?: string;
+  duration_minutes: number; duration_mins?: number; price: number;
 }
 interface Doctor {
-  doctor_id: number; name: string; specialization?: string;
+  doctor_id: string | number; id?: string | number; name: string; specialization?: string;
 }
 interface TimeSlot { time: string; available: boolean; }
 
@@ -62,11 +64,17 @@ const PublicBooking = () => {
   const fetchClinicData = async () => {
     try {
       setIsLoading(true);
-      const response = await publicAPI.getClinicInfo(clinicSlug!);
-      if (response.data.success) {
-        setClinic(response.data.data.clinic);
-        setServices(response.data.data.services);
-        setDoctors(response.data.data.doctors || []);
+      const res = await publicAPI.getClinic(clinicSlug!);
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = res.data?.data || res.data || {};
+      
+      if (payload.clinic) {
+        setClinic(payload.clinic);
+        setServices(Array.isArray(payload.services) ? payload.services : []);
+        setDoctors(Array.isArray(payload.doctors) ? payload.doctors : []);
+      } else {
+        toast.error('Clinic not found or inactive');
       }
     } catch {
       toast.error('Failed to load clinic information');
@@ -80,18 +88,18 @@ const PublicBooking = () => {
     try {
       setIsLoadingSlots(true);
       setFormData(prev => ({ ...prev, appointment_time: '' }));
-      const params: { clinic_id: number; date: string; service_id: number; doctor_id?: number } = {
-        clinic_id:  clinic.clinic_id,
+      const params: { clinic_id: string; date: string; service_id: string; doctor_id?: string } = {
+        clinic_id:  String(clinic?.clinic_id || clinic?.id || ''),
         date:       formData.appointment_date,
-        service_id: parseInt(formData.service_id),
+        service_id: formData.service_id,
       };
-      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = parseInt(formData.doctor_id);
+      if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = formData.doctor_id;
       const response = await publicAPI.getAvailableSlots(params);
       if (response.data.success) {
         setAvailableSlots(response.data.data.slots);
       }
-    } catch {
-      // silently fail
+    } catch (error) {
+      console.error('Failed to fetch available slots:', error);
     } finally {
       setIsLoadingSlots(false);
     }
@@ -104,16 +112,17 @@ const PublicBooking = () => {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (!clinic) return;
 
     try {
       setIsSubmitting(true);
       const response = await publicAPI.bookAppointment({
-        clinic_id:        clinic!.clinic_id,
+        clinic_id:        String(clinic?.clinic_id || clinic?.id || ''),
         name:             formData.name,
         phone:            formData.phone,
         email:            formData.email || undefined,
-        service_id:       parseInt(formData.service_id),
-        doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? parseInt(formData.doctor_id) : undefined,
+        service_id:       formData.service_id,
+        doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? formData.doctor_id : undefined,
         appointment_date: formData.appointment_date,
         appointment_time: formData.appointment_time,
         notes:            formData.notes || undefined,

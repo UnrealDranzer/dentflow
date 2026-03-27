@@ -46,17 +46,10 @@ const Analytics = () => {
         analyticsAPI.getRevenueAnalytics()
       ]);
 
-      if (overviewRes.data.success) {
-        setDashboardData(overviewRes.data.data);
-      }
-
-      if (appointmentRes.data.success) {
-        setAppointmentStats(appointmentRes.data.data);
-      }
-
-      if (revenueRes.data.success) {
-        setRevenueData(revenueRes.data.data);
-      }
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      setDashboardData(overviewRes.data?.data || overviewRes.data || {});
+      setAppointmentStats(appointmentRes.data?.data || appointmentRes.data || {});
+      setRevenueData(revenueRes.data?.data || revenueRes.data || {});
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {
@@ -80,6 +73,17 @@ const Analytics = () => {
     );
   }
 
+  // REINFORCED SAFETY: Extract all stats into safe constants with multi-layered fallbacks
+  const safeStats = {
+    today_total: dashboardData?.today?.total_appointments ?? dashboardData?.monthlyStats?.total ?? 0,
+    total_patients: dashboardData?.total_patients ?? dashboardData?.totalPatients ?? 0,
+    new_patients: dashboardData?.new_patients_this_month ?? 0,
+    monthly_revenue: dashboardData?.monthly_revenue ?? dashboardData?.monthlyStats?.revenue ?? 0,
+    upcoming: dashboardData?.upcoming_appointments ?? dashboardData?.upcomingCount ?? 0,
+  };
+
+  console.log("[DentFlow] Analytics rendering with safety lockdown v4", { hasData: !!dashboardData });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -99,7 +103,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.today.total_appointments || 0}
+              {safeStats.today_total}
             </div>
             <p className="text-xs text-gray-500 mt-1">Today's count</p>
           </CardContent>
@@ -114,9 +118,9 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.total_patients || 0}
+              {safeStats.total_patients}
             </div>
-            <p className="text-xs text-gray-500 mt-1">+{dashboardData?.new_patients_this_month || 0} this month</p>
+            <p className="text-xs text-gray-500 mt-1">+{safeStats.new_patients} this month</p>
           </CardContent>
         </Card>
 
@@ -129,7 +133,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.monthly_revenue || 0)}
+              {formatCurrency(safeStats.monthly_revenue)}
             </div>
             <p className="text-xs text-gray-500 mt-1">This month</p>
           </CardContent>
@@ -144,7 +148,7 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.upcoming_appointments || 0}
+              {safeStats.upcoming}
             </div>
             <p className="text-xs text-gray-500 mt-1">Next 7 days</p>
           </CardContent>

@@ -75,8 +75,13 @@ const AppointmentDetail = () => {
     try {
       setIsLoading(true);
       const response = await appointmentsAPI.getById(Number(id));
-      if (response.data.success) {
-        setAppointment(response.data.data.appointment);
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const apptData = payload.appointment || payload;
+
+      if (apptData) {
+        setAppointment(apptData);
       }
     } catch (error) {
       console.error('Failed to fetch appointment:', error);

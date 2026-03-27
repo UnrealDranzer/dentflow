@@ -60,9 +60,11 @@ const Services = () => {
     try {
       setIsLoading(true);
       const response = await servicesAPI.getAll({ active_only: false });
-      if (response.data.success) {
-        setServices(response.data.data.services);
-      }
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const svcs = payload.services || (Array.isArray(payload) ? payload : []);
+      setServices(svcs);
     } catch (error) {
       console.error('Failed to fetch services:', error);
       toast.error('Failed to load services');
@@ -192,8 +194,8 @@ const Services = () => {
                       type="number"
                       min={5}
                       max={480}
-                      value={newService.duration_minutes}
-                      onChange={(e) => setNewService({ ...newService, duration_minutes: parseInt(e.target.value) })}
+                      value={newService.duration_minutes || 0}
+                      onChange={(e) => setNewService({ ...newService, duration_minutes: parseInt(e.target.value) || 0 })}
                       required
                     />
                   </div>
@@ -203,8 +205,8 @@ const Services = () => {
                       id="price"
                       type="number"
                       min={0}
-                      value={newService.price}
-                      onChange={(e) => setNewService({ ...newService, price: parseFloat(e.target.value) })}
+                      value={newService.price || 0}
+                      onChange={(e) => setNewService({ ...newService, price: parseFloat(e.target.value) || 0 })}
                       required
                     />
                   </div>
@@ -344,16 +346,16 @@ const Services = () => {
                     <Label>Duration (minutes)</Label>
                     <Input
                       type="number"
-                      value={selectedService.duration_minutes}
-                      onChange={(e) => setSelectedService({ ...selectedService, duration_minutes: parseInt(e.target.value) })}
+                      value={selectedService.duration_minutes || 0}
+                      onChange={(e) => setSelectedService({ ...selectedService, duration_minutes: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Price (₹)</Label>
                     <Input
                       type="number"
-                      value={selectedService.price}
-                      onChange={(e) => setSelectedService({ ...selectedService, price: parseFloat(e.target.value) })}
+                      value={selectedService.price || 0}
+                      onChange={(e) => setSelectedService({ ...selectedService, price: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                 </div>

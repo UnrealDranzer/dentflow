@@ -70,10 +70,16 @@ const PatientDetail = () => {
     try {
       setIsLoading(true);
       const response = await patientsAPI.getById(Number(id));
-      if (response.data.success) {
-        setPatient(response.data.data.patient);
-        setAppointments(response.data.data.appointments);
-        setEditedPatient(response.data.data.patient);
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const patientData = payload.patient || payload;
+      const apptsData = payload.appointments || [];
+
+      if (patientData) {
+        setPatient(patientData);
+        setAppointments(Array.isArray(apptsData) ? apptsData : []);
+        setEditedPatient(patientData);
       }
     } catch (error) {
       console.error('Failed to fetch patient:', error);
@@ -170,18 +176,18 @@ const PatientDetail = () => {
             <p className="text-gray-500">Patient since {formatDate(patient.created_at)}</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <Button asChild>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button asChild className="flex-1 sm:flex-none h-11 sm:h-9">
             <Link to={`/appointments/new?patient_id=${patient.patient_id}`}>
               <Plus className="w-4 h-4 mr-2" />
               New Appointment
             </Link>
           </Button>
-          <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>
+          <Button variant="outline" className="flex-1 sm:flex-none h-11 sm:h-9" onClick={() => setIsEditDialogOpen(true)}>
             <Edit className="w-4 h-4 mr-2" />
             Edit
           </Button>
-          <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+          <Button variant="destructive" className="flex-1 sm:flex-none h-11 sm:h-9" onClick={() => setIsDeleteDialogOpen(true)}>
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </Button>
@@ -197,7 +203,7 @@ const PatientDetail = () => {
 
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500">Total Visits</CardTitle>
@@ -221,7 +227,7 @@ const PatientDetail = () => {
                 <CardTitle className="text-sm font-medium text-gray-500">Total Spent</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">
+                <div className="text-xl sm:text-3xl font-bold">
                   ₹{patient.total_spent.toLocaleString()}
                 </div>
               </CardContent>

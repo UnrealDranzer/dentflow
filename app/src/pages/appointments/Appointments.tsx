@@ -57,9 +57,11 @@ const Appointments = () => {
       if (dateFilter) params.date = dateFilter;
       
       const response = await appointmentsAPI.getAll(params);
-      if (response.data.success) {
-        setAppointments(response.data.data.appointments);
-      }
+      
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const payload = response.data?.data || response.data || {};
+      const appts = payload.appointments || (Array.isArray(payload) ? payload : []);
+      setAppointments(appts);
     } catch (error) {
       console.error('Failed to fetch appointments:', error);
       toast.error('Failed to load appointments');
@@ -137,7 +139,7 @@ const Appointments = () => {
           <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
           <p className="text-gray-500">Manage your clinic appointments</p>
         </div>
-        <Button asChild>
+        <Button asChild className="h-11 sm:h-9">
           <Link to="/appointments/new">
             <Plus className="w-4 h-4 mr-2" />
             New Appointment
@@ -175,7 +177,7 @@ const Appointments = () => {
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="w-40"
+                className="w-full sm:w-40"
               />
             </div>
           </div>

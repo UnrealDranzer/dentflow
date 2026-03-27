@@ -21,6 +21,7 @@ import Analytics from '@/pages/analytics/Analytics';
 import Settings from '@/pages/settings/Settings';
 import PublicBooking from '@/pages/public/PublicBooking';
 import Doctors from '@/pages/doctors/Doctors';
+import Billing from '@/pages/Billing';
 
 // Components
 import { Toaster } from '@/components/ui/sonner';
@@ -136,6 +137,7 @@ function App() {
           <Route path="/appointments/:id" element={<AppointmentDetail />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/billing" element={<Billing />} />
         </Route>
 
         {/* Default Redirect */}

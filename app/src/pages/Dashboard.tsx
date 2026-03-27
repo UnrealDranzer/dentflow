@@ -51,13 +51,16 @@ const Dashboard = () => {
         appointmentsAPI.getToday()
       ]);
 
-      if (overviewRes.data.success) {
-        setStats(overviewRes.data.data);
-      }
+      // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
+      const statsPayload = overviewRes.data?.data || overviewRes.data || {};
+      const todayPayload = todayRes.data?.data || todayRes.data || {};
+      
+      // Prefer nested 'stats' if available
+      setStats(statsPayload.stats || statsPayload);
 
-      if (todayRes.data.success) {
-        setTodayAppointments(todayRes.data.data.appointments);
-      }
+      // Prefer nested 'appointments' or the array itself
+      const appts = todayPayload.appointments || todayPayload.today_appointments || (Array.isArray(todayPayload) ? todayPayload : []);
+      setTodayAppointments(appts);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -109,6 +112,24 @@ const Dashboard = () => {
     );
   }
 
+  // ENHANCED SAFETY: Defensive extraction to prevent "total_appointments" crash.
+  // We use local variables and multiple fallbacks to ensure zero-risk rendering.
+  const rawStats = stats || {};
+  const todayObj = (rawStats as any).today || (rawStats as any).stats?.today || {};
+  const monthlyObj = (rawStats as any).monthlyStats || (rawStats as any).stats?.monthlyStats || {};
+
+  const safeStats = {
+    today_total: todayObj?.total_appointments ?? monthlyObj?.total ?? 0,
+    today_scheduled: todayObj?.scheduled ?? 0,
+    today_completed: todayObj?.completed ?? 0,
+    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0,
+    new_patients: stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0,
+    revenue: stats?.monthly_revenue ?? monthlyObj?.revenue ?? 0,
+  };
+
+
+  console.log("[DentFlow] Dashboard rendering with safety lockdown v4", { hasStats: !!stats });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -133,7 +154,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-500">Today's Appointments</CardTitle>
@@ -142,9 +163,11 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.today.total_appointments || 0}</div>
+            <div className="text-2xl font-bold">
+              {safeStats.today_total}
+            </div>
             <p className="text-xs text-gray-500 mt-1">
-              {stats?.today.scheduled || 0} scheduled, {stats?.today.completed || 0} completed
+              {safeStats.today_scheduled} scheduled, {safeStats.today_completed} completed
             </p>
           </CardContent>
         </Card>
@@ -157,7 +180,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.upcoming_appointments || 0}</div>
+            <div className="text-2xl font-bold">
+              {safeStats.upcoming}
+            </div>
             <p className="text-xs text-gray-500 mt-1">Next 7 days</p>
           </CardContent>
         </Card>
@@ -170,7 +195,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.new_patients_this_month || 0}</div>
+            <div className="text-2xl font-bold">
+              {safeStats.new_patients}
+            </div>
             <p className="text-xs text-gray-500 mt-1">This month</p>
           </CardContent>
         </Card>
@@ -183,7 +210,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.monthly_revenue || 0)}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(safeStats.revenue)}
+            </div>
             <p className="text-xs text-gray-500 mt-1">From completed appointments</p>
           </CardContent>
         </Card>

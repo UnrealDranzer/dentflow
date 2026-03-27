@@ -30,12 +30,12 @@ import {
   Phone,
   Mail,
   Calendar,
-  User
+  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Patient {
-  patient_id: number;
+  id: string;
   name: string;
   phone: string;
   email?: string;
@@ -49,23 +49,16 @@ const Patients = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newPatient, setNewPatient] = useState({
-    name: '',
-    phone: '',
-    email: ''
-  });
+  const [newPatient, setNewPatient] = useState({ name: '', phone: '', email: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  useEffect(() => { fetchPatients(); }, []);
 
   const fetchPatients = async () => {
     try {
       setIsLoading(true);
       const response = await patientsAPI.getAll();
-      if (response.data.success) {
-        setPatients(response.data.data.patients);
-      }
+      if (response.data.success) setPatients(response.data.data.patients);
     } catch (error) {
       console.error('Failed to fetch patients:', error);
       toast.error('Failed to load patients');
@@ -73,8 +66,6 @@ const Patients = () => {
       setIsLoading(false);
     }
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,9 +95,7 @@ const Patients = () => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      year: 'numeric', month: 'short', day: 'numeric',
     });
   };
 
@@ -128,7 +117,7 @@ const Patients = () => {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="h-11 sm:h-9">
               <Plus className="w-4 h-4 mr-2" />
               Add Patient
             </Button>
@@ -136,9 +125,7 @@ const Patients = () => {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add New Patient</DialogTitle>
-              <DialogDescription>
-                Enter the patient details below.
-              </DialogDescription>
+              <DialogDescription>Enter the patient details below.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddPatient}>
               <div className="space-y-4 py-4">
@@ -201,7 +188,7 @@ const Patients = () => {
         </CardContent>
       </Card>
 
-      {/* Patients Table */}
+      {/* Patients Table / Cards */}
       <Card>
         <CardHeader>
           <CardTitle>All Patients ({filteredPatients.length})</CardTitle>
@@ -211,77 +198,116 @@ const Patients = () => {
             <div className="text-center py-12 text-gray-500">
               <User className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No patients found</p>
-              {searchQuery && (
-                <p className="text-sm">Try adjusting your search</p>
-              )}
+              {searchQuery && <p className="text-sm">Try adjusting your search</p>}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Last Visit</TableHead>
-                    <TableHead>Total Visits</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPatients.map((patient) => (
-                    <TableRow key={patient.patient_id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-semibold">
-                              {patient.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium">{patient.name}</p>
-                            <p className="text-sm text-gray-500">
-                              Added {formatDate(patient.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="w-3 h-3 text-gray-400" />
-                            {patient.phone}
-                          </div>
-                          {patient.email && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Mail className="w-3 h-3 text-gray-400" />
-                              {patient.email}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          {formatDate(patient.last_visit)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={patient.total_visits > 0 ? 'default' : 'secondary'}>
-                          {patient.total_visits} visits
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild variant="ghost" size="sm">
-                          <Link to={`/patients/${patient.patient_id}`}>
-                            View
-                          </Link>
-                        </Button>
-                      </TableCell>
+            <>
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Last Visit</TableHead>
+                      <TableHead>Total Visits</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPatients.map((patient) => (
+                      <TableRow key={patient.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 font-semibold">
+                                {patient.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{patient.name}</p>
+                              <p className="text-sm text-gray-500">Added {formatDate(patient.created_at)}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="w-3 h-3 text-gray-400" />
+                              {patient.phone}
+                            </div>
+                            {patient.email && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="w-3 h-3 text-gray-400" />
+                                {patient.email}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            {formatDate(patient.last_visit)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={patient.total_visits > 0 ? 'default' : 'secondary'}>
+                            {patient.total_visits} visits
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/patients/${patient.id}`}>View</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card List */}
+              <div className="sm:hidden space-y-3">
+                {filteredPatients.map((patient) => (
+                  <Link
+                    key={patient.id}
+                    to={`/patients/${patient.id}`}
+                    className="block p-4 bg-gray-50 rounded-lg border border-gray-100 active:bg-gray-100 transition-colors"
+                  >
+
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-blue-600 font-semibold text-sm">
+                          {patient.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{patient.name}</p>
+                        <p className="text-xs text-gray-500">Visits: {patient.total_visits}</p>
+                      </div>
+                      <Badge
+                        variant={patient.total_visits > 0 ? 'default' : 'secondary'}
+                        className="text-[10px] h-5 flex-shrink-0"
+                      >
+                        {patient.total_visits}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="truncate">{patient.phone}</span>
+                      </div>
+                      {patient.last_visit && (
+                        <div className="flex items-center gap-1.5 justify-end truncate">
+                          <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{formatDate(patient.last_visit)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
