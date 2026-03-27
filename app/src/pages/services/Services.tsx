@@ -99,7 +99,7 @@ const Services = () => {
     if (!selectedService) return;
 
     try {
-      const response = await servicesAPI.update(selectedService.service_id, {
+      const response = await servicesAPI.update(String(selectedService.service_id), {
         service_name: selectedService.service_name,
         description: selectedService.description,
         duration_minutes: selectedService.duration_minutes,
@@ -121,7 +121,7 @@ const Services = () => {
     if (!selectedService) return;
 
     try {
-      const response = await servicesAPI.delete(selectedService.service_id);
+      const response = await servicesAPI.delete(String(selectedService.service_id));
       if (response.data.success) {
         toast.success('Service deleted successfully');
         setIsDeleteDialogOpen(false);

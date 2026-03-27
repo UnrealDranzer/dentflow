@@ -14,8 +14,8 @@ import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, U
 import { toast } from 'sonner';
 
 interface Clinic {
-  clinic_id: string | number;
-  id?: string | number;
+  clinic_id: string;
+  id?: string;
   clinic_name: string;
   name?: string;
   phone: string;
@@ -26,11 +26,11 @@ interface Clinic {
   state?: string;
 }
 interface Service {
-  service_id: string | number; id?: string | number; service_name: string; name?: string; description?: string;
+  service_id: string; id?: string; service_name: string; name?: string; description?: string;
   duration_minutes: number; duration_mins?: number; price: number;
 }
 interface Doctor {
-  doctor_id: string | number; id?: string | number; name: string; specialization?: string;
+  doctor_id: string; id?: string; name: string; specialization?: string;
 }
 interface TimeSlot { time: string; available: boolean; }
 

@@ -23,7 +23,7 @@ import {
 import { toast } from 'sonner';
 
 interface Patient {
-  patient_id: number;
+  patient_id: string;
   name: string;
   phone: string;
   email?: string;
@@ -42,7 +42,7 @@ interface Patient {
 }
 
 interface Appointment {
-  appointment_id: number;
+  appointment_id: string;
   appointment_date: string;
   appointment_time: string;
   service_name: string;
@@ -69,7 +69,7 @@ const PatientDetail = () => {
   const fetchPatientData = async () => {
     try {
       setIsLoading(true);
-      const response = await patientsAPI.getById(Number(id));
+      const response = await patientsAPI.getById(id as string);
       
       // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
       const payload = response.data?.data || response.data || {};
@@ -92,7 +92,7 @@ const PatientDetail = () => {
   const handleUpdatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await patientsAPI.update(Number(id), editedPatient);
+      const response = await patientsAPI.update(id as string, editedPatient);
       if (response.data.success) {
         toast.success('Patient updated successfully');
         setIsEditDialogOpen(false);
@@ -105,7 +105,7 @@ const PatientDetail = () => {
 
   const handleDeletePatient = async () => {
     try {
-      const response = await patientsAPI.delete(Number(id));
+      const response = await patientsAPI.delete(id as string);
       if (response.data.success) {
         toast.success('Patient deleted successfully');
         navigate('/patients');

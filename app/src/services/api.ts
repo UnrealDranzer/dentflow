@@ -73,13 +73,13 @@ export const clinicAPI = {
 export const patientsAPI = {
   getAll: (params?: { search?: string; page?: number; limit?: number }) =>
     api.get('/patients', { params }),
-  getById: (id: number) =>
+  getById: (id: string) =>
     api.get(`/patients/${id}`),
   create: (data: Partial<Patient>) =>
     api.post('/patients', data),
-  update: (id: number, data: Partial<Patient>) =>
+  update: (id: string, data: Partial<Patient>) =>
     api.put(`/patients/${id}`, data),
-  delete: (id: number) =>
+  delete: (id: string) =>
     api.delete(`/patients/${id}`),
   getStats: () =>
     api.get('/patients/stats'),
@@ -89,13 +89,13 @@ export const patientsAPI = {
 export const servicesAPI = {
   getAll: (params?: { active_only?: boolean }) =>
     api.get('/services', { params }),
-  getById: (id: number) =>
+  getById: (id: string) =>
     api.get(`/services/${id}`),
   create: (data: Partial<Service>) =>
     api.post('/services', data),
-  update: (id: number, data: Partial<Service>) =>
+  update: (id: string, data: Partial<Service>) =>
     api.put(`/services/${id}`, data),
-  delete: (id: number) =>
+  delete: (id: string) =>
     api.delete(`/services/${id}`),
   getPopular: () =>
     api.get('/services/popular'),
@@ -105,7 +105,7 @@ export const servicesAPI = {
 export const doctorsAPI = {
   getAll: (params?: { search?: string; active_only?: boolean }) =>
     api.get('/doctors', { params }),
-  getById: (id: number) =>
+  getById: (id: string) =>
     api.get(`/doctors/${id}`),
   create: (data: Partial<Doctor> & {
     working_days?: number[];
@@ -116,7 +116,7 @@ export const doctorsAPI = {
     slot_interval?: number;
   }) =>
     api.post('/doctors', data),
-  update: (id: number, data: Partial<Doctor> & {
+  update: (id: string, data: Partial<Doctor> & {
     working_days?: number[];
     start_time?: string;
     end_time?: string;
@@ -126,9 +126,9 @@ export const doctorsAPI = {
     is_active?: boolean;
   }) =>
     api.put(`/doctors/${id}`, data),
-  delete: (id: number) =>
+  delete: (id: string) =>
     api.delete(`/doctors/${id}`),
-  updateAvailability: (id: number, data: {
+  updateAvailability: (id: string, data: {
     working_days: number[];
     start_time: string;
     end_time: string;
@@ -137,27 +137,27 @@ export const doctorsAPI = {
     slot_interval?: number;
   }) =>
     api.put(`/doctors/${id}/availability`, data),
-  addLeave: (id: number, data: { leave_date: string; reason?: string }) =>
+  addLeave: (id: string, data: { leave_date: string; reason?: string }) =>
     api.post(`/doctors/${id}/leaves`, data),
-  removeLeave: (doctorId: number, leaveId: number) =>
+  removeLeave: (doctorId: string, leaveId: string) =>
     api.delete(`/doctors/${doctorId}/leaves/${leaveId}`),
-  getAvailableSlots: (id: number, params: { date: string; service_id: number }) =>
+  getAvailableSlots: (id: string, params: { date: string; service_id: string }) =>
     api.get(`/doctors/${id}/available-slots`, { params }),
 };
 
 // ─── Appointments API ─────────────────────────────────────────────────────────
 export const appointmentsAPI = {
-  getAll: (params?: { date?: string; status?: string; patient_id?: number; doctor_id?: number; page?: number; limit?: number }) =>
+  getAll: (params?: { date?: string; status?: string; patient_id?: string; doctor_id?: string; page?: number; limit?: number }) =>
     api.get('/appointments', { params }),
-  getById: (id: number) =>
+  getById: (id: string) =>
     api.get(`/appointments/${id}`),
   create: (data: Partial<Appointment>) =>
     api.post('/appointments', data),
-  update: (id: number, data: Partial<Appointment>) =>
+  update: (id: string, data: Partial<Appointment>) =>
     api.put(`/appointments/${id}`, data),
-  delete: (id: number) =>
+  delete: (id: string) =>
     api.delete(`/appointments/${id}`),
-  getAvailableSlots: (params: { date: string; service_id: number; doctor_id?: number }) =>
+  getAvailableSlots: (params: { date: string; service_id: string; doctor_id?: string }) =>
     api.get('/appointments/available-slots', { params }),
   getToday: () =>
     api.get('/appointments/today'),
@@ -198,7 +198,7 @@ export const billingAPI = {
 export const publicAPI = {
   getClinic: (clinicSlug: string) =>
     axios.get(`${API_BASE_URL}/public/clinic/${clinicSlug}`),
-  getAvailableSlots: (params: { clinic_id: number; date: string; service_id: number; doctor_id?: number }) =>
+  getAvailableSlots: (params: { clinic_id: string; date: string; service_id: string; doctor_id?: string }) =>
     axios.get(`${API_BASE_URL}/public/available-slots`, { params }),
   bookAppointment: (data: Partial<AppointmentBooking>) =>
     axios.post(`${API_BASE_URL}/public/book-appointment`, data),
@@ -206,8 +206,8 @@ export const publicAPI = {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Clinic {
-  clinic_id: string | number;
-  id?: string | number;
+  clinic_id: string;
+  id?: string;
   clinic_name: string;
   name?: string;
   clinic_slug?: string;
@@ -233,9 +233,9 @@ export interface Clinic {
 }
 
 export interface Patient {
-  patient_id: string | number;
-  id?: string | number;
-  clinic_id: number;
+  patient_id: string;
+  id?: string;
+  clinic_id: string;
   name: string;
   phone: string;
   email?: string;
@@ -254,9 +254,9 @@ export interface Patient {
 }
 
 export interface Service {
-  service_id: string | number;
-  id?: string | number;
-  clinic_id: number;
+  service_id: string;
+  id?: string;
+  clinic_id: string;
   service_name: string;
   description?: string;
   duration_minutes: number;
@@ -267,9 +267,9 @@ export interface Service {
 }
 
 export interface Doctor {
-  doctor_id: string | number;
-  id?: string | number;
-  clinic_id: number;
+  doctor_id: string;
+  id?: string;
+  clinic_id: string;
   name: string;
   specialization?: string;
   phone?: string;
@@ -290,12 +290,12 @@ export interface Doctor {
 }
 
 export interface Appointment {
-  appointment_id: string | number;
-  id?: string | number;
-  clinic_id: number;
-  patient_id: number;
-  service_id: number;
-  doctor_id?: number;
+  appointment_id: string;
+  id?: string;
+  clinic_id: string;
+  patient_id: string;
+  service_id: string;
+  doctor_id?: string;
   appointment_date: string;
   appointment_time: string;
   duration_minutes: number;
@@ -314,12 +314,12 @@ export interface Appointment {
 }
 
 export interface AppointmentBooking {
-  clinic_id: number;
+  clinic_id: string;
   name: string;
   phone: string;
   email?: string;
-  service_id: number;
-  doctor_id?: number;
+  service_id: string;
+  doctor_id?: string;
   appointment_date: string;
   appointment_time: string;
   notes?: string;

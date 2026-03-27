@@ -36,12 +36,12 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 interface Appointment {
-  appointment_id: number;
-  patient_id: number;
+  appointment_id: string;
+  patient_id: string;
   patient_name: string;
   patient_phone: string;
   patient_email?: string;
-  service_id: number;
+  service_id: string;
   service_name: string;
   service_price: number;
   appointment_date: string;
@@ -74,7 +74,7 @@ const AppointmentDetail = () => {
   const fetchAppointment = async () => {
     try {
       setIsLoading(true);
-      const response = await appointmentsAPI.getById(Number(id));
+      const response = await appointmentsAPI.getById(id as string);
       
       // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
       const payload = response.data?.data || response.data || {};
@@ -93,7 +93,7 @@ const AppointmentDetail = () => {
 
   const handleUpdateStatus = async () => {
     try {
-      const response = await appointmentsAPI.update(Number(id), {
+      const response = await appointmentsAPI.update(id as string, {
         status: newStatus as 'confirmed' | 'completed' | 'no_show',
         notes: statusNotes || appointment?.notes
       });
@@ -110,7 +110,7 @@ const AppointmentDetail = () => {
 
   const handleCancel = async () => {
     try {
-      const response = await appointmentsAPI.delete(Number(id));
+      const response = await appointmentsAPI.delete(id as string);
       if (response.data.success) {
         toast.success('Appointment cancelled');
         navigate('/appointments');
