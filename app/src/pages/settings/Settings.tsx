@@ -60,10 +60,12 @@ const Settings = () => {
       setIsLoading(true);
       const res = await clinicAPI.getSettings();
       if (res.data.success) {
-        const c = res.data.data.clinic;
+        const payload = res.data.data || {};
+        const c = payload.settings || payload.clinic || {};
+        
         setProfile({
-          clinic_name:        c.clinic_name        || '',
-          clinic_slug:        c.clinic_slug        || '',
+          clinic_name:        c.name               || c.clinic_name        || '',
+          clinic_slug:        c.booking_slug       || c.clinic_slug        || '',
           phone:              c.phone              || '',
           address:            c.address            || '',
           city:               c.city               || '',

@@ -25,44 +25,34 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
-  User,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
   Stethoscope,
+  Info,
+  User,
   Phone,
   Mail,
-  Edit,
-  XCircle
+  Edit
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
-interface Appointment {
-  appointment_id: string;
-  patient_id: string;
-  patient_name: string;
-  patient_phone: string;
-  patient_email?: string;
-  service_id: string;
-  service_name: string;
-  service_price: number;
-  appointment_date: string;
-  appointment_time: string;
-  duration_minutes: number;
-  status: string;
-  notes?: string;
-  reminder_sent: boolean;
-  source: string;
-  color_code: string;
-  created_at: string;
-}
+import { formatTime, formatDate, formatCurrency } from '@/lib/formatters';
+import type { NormalizedAppointment } from '@/lib/normalizers';
+import { normalizeAppointment } from '@/lib/normalizers';
+
+// Using NormalizedAppointment instead of local inline interface
+
 
 const AppointmentDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [appointment, setAppointment] = useState<NormalizedAppointment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState<string | undefined>(undefined);
+  const [newStatus, setNewStatus] = useState<string>("scheduled");
   const [statusNotes, setStatusNotes] = useState('');
 
   useEffect(() => {
@@ -81,7 +71,7 @@ const AppointmentDetail = () => {
       const apptData = payload.appointment || payload;
 
       if (apptData) {
-        setAppointment(apptData);
+        setAppointment(normalizeAppointment(apptData));
       }
     } catch (error) {
       console.error('Failed to fetch appointment:', error);
@@ -95,7 +85,7 @@ const AppointmentDetail = () => {
     try {
       const response = await appointmentsAPI.update(id as string, {
         status: newStatus as 'confirmed' | 'completed' | 'no_show',
-        notes: statusNotes || appointment?.notes
+        notes: statusNotes || appointment?.notes || undefined
       });
 
       if (response.data.success) {
@@ -121,45 +111,23 @@ const AppointmentDetail = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; color: string }> = {
-      scheduled: { variant: 'default', color: 'bg-blue-100 text-blue-800' },
-      confirmed: { variant: 'default', color: 'bg-green-100 text-green-800' },
-      completed: { variant: 'secondary', color: 'bg-gray-100 text-gray-800' },
-      cancelled: { variant: 'destructive', color: 'bg-red-100 text-red-800' },
-      no_show: { variant: 'outline', color: 'bg-yellow-100 text-yellow-800' }
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
+      scheduled: { variant: 'default', icon: Calendar },
+      confirmed: { variant: 'default', icon: CheckCircle2 },
+      completed: { variant: 'secondary', icon: CheckCircle2 },
+      cancelled: { variant: 'destructive', icon: XCircle },
+      no_show: { variant: 'outline', icon: AlertCircle }
     };
 
     const config = variants[status] || variants.scheduled;
+    const Icon = config.icon;
 
     return (
-      <Badge className={config.color}>
+      <Badge variant={config.variant} className="gap-1">
+        <Icon className="w-3 h-3" />
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
   };
 
   if (isLoading) {
@@ -181,12 +149,11 @@ const AppointmentDetail = () => {
     );
   }
 
-  const canUpdateStatus = ['scheduled', 'confirmed'].includes(appointment.status);
-  const canCancel = ['scheduled', 'confirmed'].includes(appointment.status);
+  const canUpdateStatus = appointment.status ? ['scheduled', 'confirmed'].includes(appointment.status) : false;
+  const canCancel = appointment.status ? ['scheduled', 'confirmed'].includes(appointment.status) : false;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -214,9 +181,7 @@ const AppointmentDetail = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Status Card */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -233,7 +198,7 @@ const AppointmentDetail = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  {getStatusBadge(appointment.status)}
+                  {getStatusBadge(appointment.status || 'scheduled')}
                   <p className="text-sm text-gray-500 mt-1">
                     {appointment.reminder_sent ? 'Reminder sent' : 'No reminder sent'}
                   </p>
@@ -242,7 +207,6 @@ const AppointmentDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Date & Time */}
           <Card>
             <CardHeader>
               <CardTitle>Date & Time</CardTitle>
@@ -250,33 +214,39 @@ const AppointmentDetail = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <Calendar className="w-5 h-5 text-gray-400" />
-                <span>{formatDate(appointment.appointment_date)}</span>
+                <div>
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-medium text-gray-900">{formatDate(appointment.appointment_date)}</p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-gray-400" />
-                <span>
-                  {formatTime(appointment.appointment_time)} ({appointment.duration_minutes} minutes)
-                </span>
+                <div>
+                  <p className="text-sm text-gray-500">Time</p>
+                  <p className="font-medium text-gray-900">{formatTime(appointment.appointment_time)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Info className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Duration</p>
+                  <p className="font-medium text-gray-900">{appointment.duration_mins} minutes</p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Notes */}
-          {appointment.notes && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-700 whitespace-pre-wrap">{appointment.notes}</p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700 whitespace-pre-wrap">{appointment.notes || 'No notes provided'}</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Patient Info */}
           <Card>
             <CardHeader>
               <CardTitle>Patient Information</CardTitle>
@@ -306,27 +276,7 @@ const AppointmentDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Appointment Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Appointment Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Source</span>
-                <span className="capitalize">{appointment.source.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Created</span>
-                <span>{formatDate(appointment.created_at)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Reminder</span>
-                <span>{appointment.reminder_sent ? 'Sent' : 'Pending'}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      </div>
       </div>
 
       {/* Update Status Dialog */}

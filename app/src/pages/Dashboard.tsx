@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { formatTime, formatDate, formatCurrency } from '@/lib/formatters';
+import { normalizeAppointments } from '@/lib/normalizers';
+
 interface DashboardStats {
   today: {
     total_appointments: number;
@@ -59,8 +62,8 @@ const Dashboard = () => {
       setStats(statsPayload.stats || statsPayload);
 
       // Prefer nested 'appointments' or the array itself
-      const appts = todayPayload.appointments || todayPayload.today_appointments || (Array.isArray(todayPayload) ? todayPayload : []);
-      setTodayAppointments(appts);
+      const rawAppts = todayPayload.appointments || todayPayload.today_appointments || (Array.isArray(todayPayload) ? todayPayload : []);
+      setTodayAppointments(normalizeAppointments(rawAppts));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -87,21 +90,6 @@ const Dashboard = () => {
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
   };
 
   if (isLoading) {
@@ -223,7 +211,7 @@ const Dashboard = () => {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Today's Schedule</CardTitle>
-            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p className="text-sm text-gray-500">{formatDate(new Date().toISOString())}</p>
           </div>
           <Button asChild variant="ghost" size="sm">
             <Link to="/appointments">

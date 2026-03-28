@@ -20,6 +20,7 @@ import {
   Trash2,
   Plus
 } from 'lucide-react';
+import { formatTime, formatDate } from '@/lib/formatters';
 import { toast } from 'sonner';
 
 interface Patient {
@@ -113,22 +114,6 @@ const PatientDetail = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete patient');
     }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not provided';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const getStatusBadge = (status: string) => {
@@ -228,7 +213,7 @@ const PatientDetail = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-3xl font-bold">
-                  ₹{patient.total_spent.toLocaleString()}
+                  ₹{(patient.total_spent ?? 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>

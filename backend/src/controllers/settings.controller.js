@@ -1,4 +1,5 @@
 import { query, withTransaction } from '../config/db.js';
+import bcrypt from 'bcryptjs';
 
 // ─── Slot Helpers (Duplicated for public use to minimize restructuring) ───────
 const timeToMinutes = (t) => {
@@ -97,6 +98,58 @@ export const updateProfile = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+export const updateWorkingHours = async (req, res, next) => {
+  try {
+    const { working_hours_start, working_hours_end, working_days, slot_interval_minutes } = req.body;
+    const wDaysParam = Array.isArray(working_days) ? JSON.stringify(working_days) : null;
+    const result = await query(
+      `UPDATE clinics
+       SET working_hours_start = COALESCE($1, working_hours_start),
+           working_hours_end = COALESCE($2, working_hours_end),
+           working_days = COALESCE($3, working_days),
+           slot_interval_minutes = COALESCE($4, slot_interval_minutes),
+           updated_at = NOW()
+       WHERE id = $5 RETURNING *`,
+      [working_hours_start, working_hours_end, wDaysParam, slot_interval_minutes, req.clinicId]
+    );
+    res.json({ success: true, data: { settings: result.rows[0] } });
+  } catch (err) { next(err); }
+};
+
+export const updateNotifications = async (req, res, next) => {
+  try {
+    const { sms_enabled, whatsapp_enabled, google_review_link } = req.body;
+    const result = await query(
+      `UPDATE clinics
+       SET sms_enabled = COALESCE($1, sms_enabled),
+           whatsapp_enabled = COALESCE($2, whatsapp_enabled),
+           google_review_link = COALESCE($3, google_review_link),
+           updated_at = NOW()
+       WHERE id = $4 RETURNING *`,
+      [sms_enabled, whatsapp_enabled, google_review_link, req.clinicId]
+    );
+    res.json({ success: true, data: { settings: result.rows[0] } });
+  } catch (err) { next(err); }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ success: false, message: 'Current and new password required' });
+    }
+    const userRes = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const isValid = await bcrypt.compare(current_password, userRes.rows[0].password_hash);
+    if (!isValid) return res.status(401).json({ success: false, message: 'Incorrect current password' });
+
+    const hashed = await bcrypt.hash(new_password, 12);
+    await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hashed, req.user.id]);
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) { next(err); }
 };
 
 export const getPublicClinicBySlug = async (req, res, next) => {
@@ -264,8 +317,8 @@ export const createPublicAppointment = async (req, res, next) => {
       const scheduled_at = `${appointment_date} ${appointment_time}`;
       const apptRes = await client.query(
         `INSERT INTO appointments 
-         (clinic_id, patient_id, service_id, dentist_id, scheduled_at, duration_mins, status, source, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', 'public', $7)
+         (clinic_id, patient_id, service_id, dentist_id, scheduled_at, duration_mins, status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7)
          RETURNING *`,
         [clinic_id, patientId, service_id, (doctor_id === 'any' ? null : doctor_id), scheduled_at, duration, notes || null]
       );

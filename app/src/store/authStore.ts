@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface Clinic {
-  clinic_id: number;
+  clinic_id: string;
   clinic_name: string;
   email: string;
   phone: string;

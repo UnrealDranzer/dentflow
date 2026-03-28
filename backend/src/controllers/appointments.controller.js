@@ -35,8 +35,32 @@ const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, 
 };
 
 const parseWorkingDays = (val) => {
-  if (!val) return [1,2,3,4,5,6];
-  try { return typeof val === 'string' ? JSON.parse(val) : val; } catch (_) { return [1,2,3,4,5,6]; }
+  const allDays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  if (!val) return allDays;
+  try { 
+    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+    if (!Array.isArray(parsed)) return allDays;
+    
+    return parsed.map(d => {
+      // Handle numeric indices (as number 1 or string "1")
+      const idx = parseInt(d, 10);
+      if (!isNaN(idx) && idx >= 0 && idx <= 6) {
+        return allDays[idx];
+      }
+      // Handle day name strings (e.g., "Monday" -> "mon")
+      return String(d).toLowerCase().slice(0, 3);
+    });
+  } catch (_) { 
+    // Fallback for non-JSON string formats
+    if (typeof val === 'string') {
+      return val.split(',').map(d => {
+        const idx = parseInt(d.trim(), 10);
+        if (!isNaN(idx) && idx >= 0 && idx <= 6) return allDays[idx];
+        return d.trim().toLowerCase().slice(0, 3);
+      });
+    }
+    return allDays; 
+  }
 };
 
 const isValidUUID = (id) => {
@@ -50,10 +74,12 @@ export const getAppointments = async (req, res, next) => {
     const { date, dentistId, status, limit = 50, offset = 0 } = req.query;
 
     let sql = `
-      SELECT a.*, p.name as patient_name, u.name as dentist_name
+      SELECT a.*, p.name as patient_name, u.name as dentist_name,
+             s.name as service_name, s.price as service_price
       FROM appointments a
       JOIN patients p ON a.patient_id = p.id
-      LEFT JOIN users u ON a.dentist_id = u.id
+      LEFT JOIN doctors u ON a.dentist_id = u.id
+      LEFT JOIN services s ON a.service_id = s.id
       WHERE a.clinic_id = $1
     `;
     const params = [req.clinicId];
@@ -84,10 +110,12 @@ export const getAppointments = async (req, res, next) => {
 export const getTodayAppointments = async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT a.*, p.name as patient_name, u.name as dentist_name
+      `SELECT a.*, p.name as patient_name, u.name as dentist_name,
+              s.name as service_name, s.price as service_price
        FROM appointments a
        JOIN patients p ON a.patient_id = p.id
-       LEFT JOIN users u ON a.dentist_id = u.id
+       LEFT JOIN doctors u ON a.dentist_id = u.id
+       LEFT JOIN services s ON a.service_id = s.id
        WHERE a.clinic_id = $1
          AND a.scheduled_at::date = CURRENT_DATE
          AND a.status != 'cancelled'
@@ -105,10 +133,11 @@ export const getAppointment = async (req, res, next) => {
     const { id } = req.params;
     const result = await query(
       `SELECT a.*, p.name as patient_name, p.phone as patient_phone,
-              u.name as dentist_name
+              u.name as dentist_name, s.name as service_name, s.price as service_price
        FROM appointments a
        JOIN patients p ON a.patient_id = p.id
-       LEFT JOIN users u ON a.dentist_id = u.id
+       LEFT JOIN doctors u ON a.dentist_id = u.id
+       LEFT JOIN services s ON a.service_id = s.id
        WHERE a.id = $1 AND a.clinic_id = $2`,
       [id, req.clinicId]
     );
@@ -136,8 +165,26 @@ export const createAppointment = async (req, res, next) => {
 
     const pId = patient_id || patientId;
     const dId = doctor_id || dentistId;
+    const sId = service_id || serviceId;
     const sAt = appointment_date && appointment_time ? `${appointment_date} ${appointment_time}` : (scheduledAt);
-    const dMins = duration_mins || durationMins;
+    let dMins = duration_mins || durationMins;
+
+    // ISSUE 1: Fetch service details to ensure correct persistence
+    let appointmentType = type || "Consultation";
+    let appointmentAmount = amount || 0;
+    
+    if (sId && isValidUUID(sId)) {
+      const serviceRes = await query(
+        "SELECT name, price, duration_mins FROM services WHERE id = $1 AND clinic_id = $2 LIMIT 1",
+        [sId, req.clinicId]
+      );
+      if (serviceRes.rows.length > 0) {
+        const sRow = serviceRes.rows[0];
+        appointmentType = sRow.name;
+        appointmentAmount = sRow.price;
+        if (!dMins) dMins = sRow.duration_mins;
+      }
+    }
 
 
     // Verify patient belongs to this clinic
@@ -183,7 +230,7 @@ export const createAppointment = async (req, res, next) => {
         `INSERT INTO appointments
          (clinic_id, patient_id, dentist_id, scheduled_at, duration_mins, status, type, notes, amount, created_by, service_id)
          VALUES ($1, $2, $3, $4, $5, 'scheduled', $6, $7, $8, $9, $10) RETURNING *`,
-        [req.clinicId, pId, (dId === 'any' ? null : dId), sAt, dMins || 30, type || null, notes || null, amount || null, req.user.id, (service_id || serviceId)]
+        [req.clinicId, pId, (dId === 'any' ? null : dId), sAt, dMins || 30, appointmentType, notes || null, appointmentAmount, req.user.id, sId]
       );
 
       return insertRes.rows[0];
@@ -223,6 +270,26 @@ export const updateAppointment = async (req, res, next) => {
     res.json({ success: true, data: { appointment: result.rows[0] } });
   } catch (error) {
     next(error);
+  }
+};
+
+export const updateAppointmentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const result = await query(
+      `UPDATE appointments 
+       SET status = $1, notes = $2 
+       WHERE id = $3 
+       RETURNING *`,
+      [status, notes || null, id]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
   }
 };
 
@@ -269,7 +336,7 @@ export const getAvailableSlots = async (req, res, next) => {
 
     if (doctor_id && doctor_id !== 'any') {
       const doctorRes = await query(
-        `SELECT working_days, start_time, end_time, is_active
+        `SELECT working_days, start_time, end_time, break_start, break_end, slot_interval, is_active
          FROM doctors WHERE id = $1 AND clinic_id = $2`,
         [doctor_id, clinicId]
       );
@@ -281,6 +348,9 @@ export const getAvailableSlots = async (req, res, next) => {
       working_days = doctor.working_days;
       start_time = doctor.start_time || '09:00:00';
       end_time = doctor.end_time || '18:00:00';
+      break_start = doctor.break_start;
+      break_end = doctor.break_end;
+      slot_interval = doctor.slot_interval;
     } else {
       const clinicRes = await query(
         'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE id = $1',
@@ -298,7 +368,13 @@ export const getAvailableSlots = async (req, res, next) => {
     }
 
     const wDays = parseWorkingDays(working_days);
-    const selectedDay = new Date(date).getDay();
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    
+    // TIMEZONE SAFE DAY-OF-WEEK:
+    // Parsing "YYYY-MM-DD" as local time by splitting avoids "getUTCDay vs getDay" shifted mismatch.
+    const [y, m, d] = date.split('-').map(Number);
+    const selectedDate = new Date(y, m - 1, d);
+    const selectedDay = dayNames[selectedDate.getDay()];
 
     if (!wDays.includes(selectedDay)) return res.json({ success: true, data: { slots: [], message: 'Clinic or doctor is closed on this day.' } });
 

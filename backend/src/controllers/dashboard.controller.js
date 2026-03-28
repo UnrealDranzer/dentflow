@@ -5,11 +5,13 @@ export const getDashboard = async (req, res, next) => {
     const [todayRes, statsRes, upcomingRes, recentPatientsRes] = await Promise.all([
       // Today's appointments
       query(
-        `SELECT a.*, p.name as patient_name, u.name as dentist_name
+        `SELECT a.*, p.name as patient_name, u.name as dentist_name,
+                s.name as service_name, s.price as service_price
          FROM appointments a
          JOIN patients p ON a.patient_id = p.id
-         LEFT JOIN users u ON a.dentist_id = u.id
-         WHERE a.clinic_id = $1
+         LEFT JOIN doctors u ON a.dentist_id = u.id
+         LEFT JOIN services s ON a.service_id = s.id
+         WHERE a.clinic_id = $1 
            AND a.scheduled_at::date = CURRENT_DATE
            AND a.status != 'cancelled'
          ORDER BY a.scheduled_at ASC`,
@@ -32,10 +34,12 @@ export const getDashboard = async (req, res, next) => {
 
       // Upcoming 7 days
       query(
-        `SELECT a.*, p.name as patient_name, u.name as dentist_name
+        `SELECT a.*, p.name as patient_name, u.name as dentist_name,
+                s.name as service_name, s.price as service_price
          FROM appointments a
          JOIN patients p ON a.patient_id = p.id
          LEFT JOIN users u ON a.dentist_id = u.id
+         LEFT JOIN services s ON a.service_id = s.id
          WHERE a.clinic_id = $1
            AND a.scheduled_at > NOW()
            AND a.scheduled_at <= NOW() + interval '7 days'

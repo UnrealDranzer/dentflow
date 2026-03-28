@@ -28,7 +28,7 @@ import {
 import { toast } from 'sonner';
 
 interface Service {
-  service_id: number;
+  service_id: string;
   service_name: string;
   description?: string;
   duration_minutes: number;

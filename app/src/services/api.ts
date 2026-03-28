@@ -12,7 +12,14 @@ if (IS_PRODUCTION && (!VITE_API_URL || VITE_API_URL.includes('localhost'))) {
   );
 }
 
-const API_BASE_URL = VITE_API_URL || 'http://localhost:5000/api';
+const getApiBaseUrl = () => {
+  let url = VITE_API_URL || 'http://localhost:5000/api';
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  if (!url.endsWith('/api')) url += '/api';
+  return url;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 
 // Create axios instance

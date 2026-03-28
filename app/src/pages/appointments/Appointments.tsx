@@ -25,21 +25,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Appointment {
-  appointment_id: number;
-  patient_name: string;
-  patient_phone: string;
-  service_name: string;
-  appointment_date: string;
-  appointment_time: string;
-  duration_minutes: number;
-  status: string;
-  color_code: string;
-  notes?: string;
-}
+import { formatTime, formatDate } from '@/lib/formatters';
+import type { NormalizedAppointment } from '@/lib/normalizers';
+import { normalizeAppointments } from '@/lib/normalizers';
+
+// Using NormalizedAppointment instead of fragile inline interface
+
 
 const Appointments = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<NormalizedAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
@@ -61,7 +55,7 @@ const Appointments = () => {
       // SYSTEM-WIDE NORMALIZATION: payload = res.data?.data || res.data || {}
       const payload = response.data?.data || response.data || {};
       const appts = payload.appointments || (Array.isArray(payload) ? payload : []);
-      setAppointments(appts);
+      setAppointments(normalizeAppointments(appts));
     } catch (error) {
       console.error('Failed to fetch appointments:', error);
       toast.error('Failed to load appointments');
@@ -71,9 +65,9 @@ const Appointments = () => {
   };
 
   const filteredAppointments = appointments.filter(appointment =>
-    appointment.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    appointment.service_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    appointment.patient_phone.includes(searchQuery)
+    (appointment.patient_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (appointment.service_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (appointment.patient_phone || '').includes(searchQuery)
   );
 
   const getStatusBadge = (status: string) => {
@@ -94,33 +88,6 @@ const Appointments = () => {
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   if (isLoading) {
@@ -220,11 +187,11 @@ const Appointments = () => {
                     <div>
                       <h4 className="font-semibold text-gray-900">{appointment.patient_name}</h4>
                       <p className="text-sm text-gray-500">{appointment.service_name}</p>
-                      <p className="text-xs text-gray-400">{appointment.duration_minutes} minutes</p>
+                      <p className="text-xs text-gray-400">{appointment.duration_mins} minutes</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {getStatusBadge(appointment.status)}
+                    {getStatusBadge(appointment.status || 'scheduled')}
                     <Button asChild variant="ghost" size="sm">
                       <Link to={`/appointments/${appointment.appointment_id}`}>
                         View

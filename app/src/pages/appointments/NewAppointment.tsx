@@ -13,9 +13,9 @@ import {
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Patient { patient_id: number; name: string; phone: string; }
-interface Service { service_id: number; service_name: string; duration_minutes: number; price: number; }
-interface Doctor  { doctor_id: number; name: string; specialization?: string; color_tag?: string; }
+interface Patient { patient_id: string; name: string; phone: string; }
+interface Service { service_id: string; service_name: string; duration_minutes: number; price: number; }
+interface Doctor  { doctor_id: string; name: string; specialization?: string; color_tag?: string; }
 type SlotItem = string | { time: string; end_time?: string; available: boolean };
 
 const NewAppointment = () => {

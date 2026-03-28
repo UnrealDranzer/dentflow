@@ -6,6 +6,7 @@ export const getDoctors = async (req, res, next) => {
     let sql = `SELECT id as doctor_id, id, clinic_id, name, specialization,
                       phone, email, qualification, experience_yrs as experience_years,
                       color_tag, working_days, start_time, end_time,
+                      break_start, break_end, slot_interval,
                       is_active, created_at, updated_at
                FROM doctors WHERE clinic_id = $1`;
     const params = [req.clinicId];
@@ -30,6 +31,7 @@ export const getDoctor = async (req, res, next) => {
       `SELECT id as doctor_id, id, clinic_id, name, specialization,
               phone, email, qualification, experience_yrs as experience_years,
               color_tag, working_days, start_time, end_time,
+              break_start, break_end, slot_interval,
               is_active, created_at, updated_at
        FROM doctors WHERE id = $1 AND clinic_id = $2`,
       [id, req.clinicId]
@@ -47,18 +49,19 @@ export const getDoctor = async (req, res, next) => {
 
 export const createDoctor = async (req, res, next) => {
   try {
-    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time } = req.body;
+    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval } = req.body;
     // Accept both frontend (experience_years) and DB (experience_yrs) field names
     const experience_yrs = req.body.experience_yrs || req.body.experience_years || null;
 
     const result = await query(
-      `INSERT INTO doctors (clinic_id, name, specialization, phone, email, qualification, experience_yrs, color_tag, working_days, start_time, end_time)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO doctors (clinic_id, name, specialization, phone, email, qualification, experience_yrs, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id as doctor_id, id, clinic_id, name, specialization,
                  phone, email, qualification, experience_yrs as experience_years,
                  color_tag, working_days, start_time, end_time,
+                 break_start, break_end, slot_interval,
                  is_active, created_at, updated_at`,
-      [req.clinicId, name, specialization || null, phone || null, email || null, qualification || null, experience_yrs, color_tag || '#3B82F6', working_days || null, start_time || null, end_time || null]
+      [req.clinicId, name, specialization || null, phone || null, email || null, qualification || null, experience_yrs, color_tag || '#3B82F6', working_days || null, start_time || null, end_time || null, break_start || null, break_end || null, slot_interval || 30]
     );
 
     res.status(201).json({ success: true, data: { doctor: result.rows[0] } });
@@ -70,7 +73,7 @@ export const createDoctor = async (req, res, next) => {
 export const updateDoctor = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time, is_active } = req.body;
+    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval, is_active } = req.body;
     const experience_yrs = req.body.experience_yrs || req.body.experience_years;
 
     const result = await query(
@@ -85,14 +88,18 @@ export const updateDoctor = async (req, res, next) => {
            working_days   = COALESCE($8, working_days),
            start_time     = COALESCE($9, start_time),
            end_time       = COALESCE($10, end_time),
-           is_active      = COALESCE($11, is_active),
+           break_start     = COALESCE($11, break_start),
+           break_end       = COALESCE($12, break_end),
+           slot_interval   = COALESCE($13, slot_interval),
+           is_active      = COALESCE($14, is_active),
            updated_at     = NOW()
-       WHERE id = $12 AND clinic_id = $13
+       WHERE id = $15 AND clinic_id = $16
        RETURNING id as doctor_id, id, clinic_id, name, specialization,
                  phone, email, qualification, experience_yrs as experience_years,
                  color_tag, working_days, start_time, end_time,
+                 break_start, break_end, slot_interval,
                  is_active, created_at, updated_at`,
-      [name, specialization, phone, email, qualification, experience_yrs, color_tag, working_days, start_time, end_time, is_active, id, req.clinicId]
+      [name, specialization, phone, email, qualification, experience_yrs, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval, is_active, id, req.clinicId]
     );
 
     if (result.rows.length === 0) {

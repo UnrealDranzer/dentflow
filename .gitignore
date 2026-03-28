@@ -39,3 +39,13 @@ backend/build
 
 # Antigravity/Agent debug files
 .antigravityignore
+
+# Temporary fix/debug scripts (never commit)
+fix_*.js
+revert.diff
+git_*.txt
+backend/test_*.js
+backend/check_db.js
+backend/apply_billing.js
+backend/migrate.js
+*.diff
