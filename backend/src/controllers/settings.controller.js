@@ -36,9 +36,29 @@ const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, 
 };
 
 const parseWorkingDays = (val) => {
-  if (!val) return [1,2,3,4,5,6];
-  try { return typeof val === 'string' ? JSON.parse(val) : val; } catch (_) { return [1,2,3,4,5,6]; }
+  const allDays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  if (!val) return allDays;
+  try { 
+    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+    if (!Array.isArray(parsed)) return allDays;
+    
+    return parsed.map(d => {
+      const idx = parseInt(d, 10);
+      if (!isNaN(idx) && idx >= 0 && idx <= 6) return allDays[idx];
+      return String(d).toLowerCase().slice(0, 3);
+    });
+  } catch (_) { 
+    if (typeof val === 'string') {
+      return val.split(',').map(d => {
+        const idx = parseInt(d.trim(), 10);
+        if (!isNaN(idx) && idx >= 0 && idx <= 6) return allDays[idx];
+        return d.trim().toLowerCase().slice(0, 3);
+      });
+    }
+    return allDays; 
+  }
 };
+
 
 
 export const getSettings = async (req, res, next) => {
@@ -217,7 +237,7 @@ export const getPublicAvailableSlots = async (req, res, next) => {
 
     if (doctor_id && doctor_id !== 'any') {
       const doctorRes = await query(
-        `SELECT working_days, start_time, end_time, is_active
+        `SELECT working_days, start_time, end_time, break_start, break_end, slot_interval, is_active
          FROM doctors WHERE id = $1 AND clinic_id = $2`,
         [doctor_id, clinic_id]
       );
@@ -229,6 +249,10 @@ export const getPublicAvailableSlots = async (req, res, next) => {
       working_days = doctor.working_days;
       start_time = doctor.start_time || '09:00:00';
       end_time = doctor.end_time || '18:00:00';
+      break_start = doctor.break_start;
+      break_end = doctor.break_end;
+      slot_interval = doctor.slot_interval;
+
     } else {
       const clinicRes = await query(
         'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE id = $1',
@@ -245,8 +269,15 @@ export const getPublicAvailableSlots = async (req, res, next) => {
     }
 
     const wDays = parseWorkingDays(working_days);
-    const selectedDay = new Date(date).getDay();
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    
+    // SAFE DATE PARSING (same as internal logic)
+    const [y, m, d_num] = date.split('-').map(Number);
+    const selectedDate = new Date(y, m - 1, d_num);
+    const selectedDay = dayNames[selectedDate.getDay()];
+
     if (!wDays.includes(selectedDay)) return res.json({ success: true, data: { slots: [], message: 'Clinic or doctor is closed on this day.' } });
+
 
     const serviceRes = await query(
       'SELECT duration_mins FROM services WHERE id = $1 AND clinic_id = $2 AND is_active = true',
@@ -305,23 +336,24 @@ export const createPublicAppointment = async (req, res, next) => {
         patientId = newPatient.rows[0].id;
       }
 
-      // 2. Get service duration (safe check)
+      // 2. Get service details
       const serviceRes = await client.query(
-        'SELECT duration_mins FROM services WHERE id = $1 AND clinic_id = $2',
+        'SELECT name, price, duration_mins FROM services WHERE id = $1 AND clinic_id = $2',
         [service_id, clinic_id]
       );
       if (serviceRes.rows.length === 0) throw new Error('Service not found');
-      const duration = serviceRes.rows[0].duration_mins;
+      const service = serviceRes.rows[0];
 
       // 3. Create appointment
       const scheduled_at = `${appointment_date} ${appointment_time}`;
       const apptRes = await client.query(
         `INSERT INTO appointments 
-         (clinic_id, patient_id, service_id, dentist_id, scheduled_at, duration_mins, status, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7)
+         (clinic_id, patient_id, service_id, dentist_id, scheduled_at, duration_mins, status, type, amount, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8, $9)
          RETURNING *`,
-        [clinic_id, patientId, service_id, (doctor_id === 'any' ? null : doctor_id), scheduled_at, duration, notes || null]
+        [clinic_id, patientId, service_id, (doctor_id === 'any' ? null : doctor_id), scheduled_at, service.duration_mins, service.name, service.price, notes || null]
       );
+
 
       return apptRes.rows[0];
     });
