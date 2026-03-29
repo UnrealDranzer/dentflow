@@ -112,6 +112,14 @@ const PORT = process.env.PORT || 5000;
 
 async function start() {
   try {
+    // 1. Validate Environment Variables
+    const requiredEnv = ['DATABASE_URL', 'JWT_SECRET'];
+    const missingEnv = requiredEnv.filter(k => !process.env[k]);
+    if (missingEnv.length > 0) {
+      throw new Error(`CRITICAL STARTUP ERROR: Missing environment variables: ${missingEnv.join(', ')}`);
+    }
+
+    // 2. Test Database Connection
     const dbStatus = await checkDbConnection();
     if (dbStatus.status === 'healthy') {
       app.listen(PORT, () => {

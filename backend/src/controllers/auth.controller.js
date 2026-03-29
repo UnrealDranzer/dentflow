@@ -31,6 +31,9 @@ export const signup = async (req, res, next) => {
       return { clinicId, userId: userRes.rows[0].id };
     });
 
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is not configured on the server');
+    }
     const token = jwt.sign({ id: result.userId }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     });
@@ -83,6 +86,9 @@ export const login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is not configured on the server');
+    }
     const token = jwt.sign({ id: row.id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     });

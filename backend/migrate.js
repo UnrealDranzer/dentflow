@@ -24,7 +24,7 @@ async function migrate() {
     console.log("Connecting to PostgreSQL database...");
     await client.connect();
 
-    const schemaPath = path.join(__dirname, 'config', 'schema.sql');
+    const schemaPath = path.join(__dirname, 'src', 'config', 'schema.sql');
     console.log(`Reading schema file from: ${schemaPath}`);
     
     if (!fs.existsSync(schemaPath)) {

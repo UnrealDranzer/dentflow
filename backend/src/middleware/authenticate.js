@@ -9,7 +9,11 @@ export const authenticate = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is not configured on the server');
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
 
     const result = await query(
       `SELECT u.id, u.clinic_id, u.email, u.name, u.role, u.is_active as user_active,

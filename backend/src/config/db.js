@@ -3,13 +3,16 @@ import logger from '../utils/logger.js';
 
 const { Pool } = pg;
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: true },
+  ssl: isProduction ? { rejectUnauthorized: false } : { rejectUnauthorized: false },
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
+
 
 pool.on('error', (err) => {
   logger.error('Unexpected error on idle client', err);
