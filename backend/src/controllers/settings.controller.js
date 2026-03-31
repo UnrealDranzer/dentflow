@@ -84,7 +84,9 @@ export const getSettings = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, website, address, city, state, country, postal_code, google_review_link, booking_slug } = req.body;
+    const { phone, website, address, city, state, country, postal_code, google_review_link } = req.body;
+    const name = req.body.name || req.body.clinic_name;
+    const booking_slug = req.body.booking_slug || req.body.clinic_slug;
 
     if (booking_slug) {
       const slugCheck = await query(
