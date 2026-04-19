@@ -69,7 +69,18 @@
   * {
     @apply border-border;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior-y: none;
+  }
+  #root {
+    height: 100vh;
+    height: 100dvh; /* modern browsers */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 }

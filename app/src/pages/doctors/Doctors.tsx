@@ -16,6 +16,7 @@ import {
   ToggleLeft, ToggleRight, Clock, Star, Briefcase
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, formatPhoneDisplay, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 
 const DAYS = [
   { val: 0, label: 'Sun' },
@@ -82,8 +83,21 @@ const DoctorForm = ({
   onCancel: () => void;
   submitLabel: string;
   isSaving: boolean;
-}) => (
-  <form onSubmit={onSubmit}>
+}) => {
+  const [phoneError, setPhoneError] = useState('');
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (values.phone && !isValidPhone(values.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError('');
+    onSubmit(e);
+  };
+
+  return (
+  <form onSubmit={handleFormSubmit}>
     <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
       {/* Basic Info */}
       <div className="space-y-3">
@@ -109,10 +123,18 @@ const DoctorForm = ({
           <div className="space-y-1">
             <Label>Phone</Label>
             <Input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
               value={values.phone || ''}
-              onChange={e => setValues({ ...values, phone: e.target.value })}
-              placeholder="+91 98765 43210"
+              onChange={e => {
+                const cleaned = handlePhoneInput(e.target.value);
+                setValues({ ...values, phone: cleaned });
+                setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+              }}
+              placeholder="9876543210"
             />
+            {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
           </div>
           <div className="space-y-1">
             <Label>Email</Label>
@@ -222,7 +244,8 @@ const DoctorForm = ({
       </Button>
     </DialogFooter>
   </form>
-);
+  );
+};
 
 const Doctors = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -256,6 +279,7 @@ const Doctors = () => {
       setIsSaving(true);
       const res = await doctorsAPI.create({
         ...newDoc,
+        phone: newDoc.phone ? (normalizePhone(newDoc.phone) || newDoc.phone) : undefined,
         experience_years: newDoc.experience_years ? Number(newDoc.experience_years) : undefined,
         slot_interval: Number(newDoc.slot_interval),
       });
@@ -280,7 +304,7 @@ const Doctors = () => {
       const res = await doctorsAPI.update(editDoc.doctor_id, {
         name: editDoc.name,
         specialization: editDoc.specialization,
-        phone: editDoc.phone,
+        phone: editDoc.phone ? (normalizePhone(editDoc.phone) || editDoc.phone) : undefined,
         email: editDoc.email,
         qualification: editDoc.qualification,
         experience_years: editDoc.experience_years ? Number(editDoc.experience_years) : undefined,
@@ -454,7 +478,7 @@ const Doctors = () => {
                 {doc.phone && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Phone className="w-3.5 h-3.5" />
-                    {doc.phone}
+                    {formatPhoneDisplay(doc.phone)}
                   </div>
                 )}
                 {doc.email && (

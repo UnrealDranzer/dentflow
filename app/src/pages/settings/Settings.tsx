@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { clinicAPI } from '@/services/api';
+import { clinicAPI, systemAPI } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 import {
-  Building2, Clock, Bell, Shield, Copy, ExternalLink, CheckCircle2
+  Building2, Clock, Bell, Shield, Copy, ExternalLink, CheckCircle2, Server
 } from 'lucide-react';
 
 const DAYS = [
@@ -25,6 +26,7 @@ const DAYS = [
 const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving,  setIsSaving]  = useState(false);
+  const [phoneError, setPhoneError] = useState('');
 
   // Profile tab
   const [profile, setProfile] = useState({
@@ -52,6 +54,9 @@ const Settings = () => {
   const [passwords, setPasswords] = useState({
     current_password: '', new_password: '', confirm_password: '',
   });
+
+  // System Billing
+  const [isBillingEnabled, setIsBillingEnabled] = useState(true);
 
   useEffect(() => { fetchSettings(); }, []);
 
@@ -94,6 +99,11 @@ const Settings = () => {
           google_review_link: c.google_review_link || '',
         });
       }
+      
+      const billingRes = await systemAPI.getBillingStatus();
+      if (billingRes.data.success) {
+        setIsBillingEnabled(billingRes.data.billing_enabled);
+      }
     } catch {
       toast.error('Failed to load settings');
     } finally {
@@ -102,9 +112,17 @@ const Settings = () => {
   };
 
   const saveProfile = async () => {
+    if (profile.phone && !isValidPhone(profile.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError('');
     try {
       setIsSaving(true);
-      const res = await clinicAPI.updateProfile(profile);
+      const res = await clinicAPI.updateProfile({
+        ...profile,
+        phone: profile.phone ? (normalizePhone(profile.phone) || profile.phone) : undefined,
+      });
       if (res.data.success) toast.success('Profile updated successfully');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to update profile');
@@ -212,6 +230,9 @@ const Settings = () => {
           <TabsTrigger value="security">
             <Shield className="w-4 h-4 mr-1.5" />Security
           </TabsTrigger>
+          <TabsTrigger value="system">
+            <Server className="w-4 h-4 mr-1.5" />System
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Profile Tab ─────────────────────────────────────────── */}
@@ -241,7 +262,19 @@ const Settings = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Phone</Label>
-                  <Input value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} />
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={profile.phone}
+                    onChange={e => {
+                      const cleaned = handlePhoneInput(e.target.value);
+                      setProfile({ ...profile, phone: cleaned });
+                      setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+                    }}
+                    placeholder="9876543210"
+                  />
+                  {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Website</Label>
@@ -333,10 +366,10 @@ const Settings = () => {
                     </button>
                   ))}
                 </div>
-                {!workingHours.working_days.includes(0) && (
-                  <p className="text-sm text-emerald-600 flex items-center gap-1">
+                {!workingHours.working_days.includes(new Date().getDay()) && (
+                  <p className="text-sm text-amber-600 flex items-center gap-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    Sunday is closed (patients will see "Clinic is closed on Sundays")
+                    Clinic is closed today
                   </p>
                 )}
               </div>
@@ -472,6 +505,45 @@ const Settings = () => {
               <Button onClick={changePassword} disabled={isSaving}>
                 {isSaving ? 'Changing...' : 'Change Password'}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── System Tab ─────────────────────────────────────────── */}
+        <TabsContent value="system" className="mt-6 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>System & Billing Settings</CardTitle>
+              <CardDescription>Global configuration for the application.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-semibold text-gray-900">Enable Billing System</h4>
+                  <p className="text-sm text-gray-500">
+                    When disabled, the platform enters 'Free Mode'. All users bypass subscriptions and 30-day trial checks.
+                  </p>
+                </div>
+                <Switch
+                  checked={isBillingEnabled}
+                  onCheckedChange={async (val) => {
+                    if (isSaving) return;
+                    setIsSaving(true);
+                    try {
+                      const res = await systemAPI.updateBillingStatus({ billing_enabled: val });
+                      if (res.data.success) {
+                        setIsBillingEnabled(val);
+                        toast.success(`Billing system is now ${val ? 'ON' : 'OFF'}`);
+                      }
+                    } catch (err) {
+                      toast.error('Failed to update billing settings');
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                  disabled={isSaving}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

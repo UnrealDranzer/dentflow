@@ -40,12 +40,17 @@ const loadRazorpay = (): Promise<boolean> => {
 };
 
 const Billing = () => {
-  const { subscription, isLoading: subLoading, refresh, daysLeft } = useSubscription();
+  const { subscription, isLoading: subLoading, refresh, daysLeft, isFreeMode } = useSubscription();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [payingPlan, setPayingPlan] = useState<string | null>(null);
 
   useEffect(() => {
+    // Only fetch plans if billing is enabled
+    if (isFreeMode) {
+      setPlansLoading(false);
+      return;
+    }
     const fetchPlans = async () => {
       try {
         const res = await billingAPI.getPlans();
@@ -57,7 +62,7 @@ const Billing = () => {
       }
     };
     fetchPlans();
-  }, []);
+  }, [isFreeMode]);
 
   const handleSubscribe = async (planId: string) => {
     try {
@@ -119,6 +124,7 @@ const Billing = () => {
   };
 
   const getStatusBadge = () => {
+    if (isFreeMode) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Free Mode</span>;
     const map: Record<string, { label: string; className: string }> = {
       trial:    { label: 'Trial',    className: 'bg-blue-100 text-blue-700' },
       active:   { label: 'Active',   className: 'bg-green-100 text-green-700' },
@@ -130,10 +136,32 @@ const Billing = () => {
     return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.className}`}>{s.label}</span>;
   };
 
-  if (subLoading) {
+  if (subLoading || plansLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Spinner className="w-8 h-8" />
+      </div>
+    );
+  }
+
+  if (isFreeMode) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
+          <p className="text-gray-500">Manage your DentFlow subscription</p>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <Zap className="w-8 h-8 text-gray-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Billing is disabled</h2>
+            <p className="text-gray-500 max-w-sm">
+              The platform is currently operating in Free Mode. You have unlimited access to all features and subscriptions are bypassed.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }

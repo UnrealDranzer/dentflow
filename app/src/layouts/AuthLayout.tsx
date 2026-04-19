@@ -3,9 +3,9 @@ import { Stethoscope } from 'lucide-react';
 
 const AuthLayout = () => {
   return (
-    <div className="min-h-screen flex">
+    <div className="h-full w-full flex overflow-hidden flex-col lg:flex-row">
       {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 flex-col justify-center items-center text-white p-12">
+      <div className="hidden lg:flex w-full lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 flex-col justify-center items-center text-white p-12 flex-shrink-0">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center">
             <Stethoscope className="w-10 h-10 text-blue-600" />
@@ -32,8 +32,8 @@ const AuthLayout = () => {
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 bg-gray-50">
-        <div className="w-full max-w-md">
+      <div className="flex-1 flex flex-col justify-center items-center py-12 px-4 sm:px-8 bg-gray-50 overflow-y-auto">
+        <div className="w-full max-w-md my-auto">
           <Outlet />
         </div>
       </div>

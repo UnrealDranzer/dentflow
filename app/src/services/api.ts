@@ -60,6 +60,22 @@ export const authAPI = {
     api.get('/auth/me'),
   logout: () =>
     api.post('/auth/logout'),
+
+  // ─── Registration OTP ────────────────────────────────────────────────────
+  sendRegisterOtp: (data: { clinic_name: string; email: string; phone?: string; password: string; adminName?: string }) =>
+    api.post('/auth/register/send-otp', data),
+  verifyRegisterOtp: (data: { email: string; otp: string }) =>
+    api.post('/auth/register/verify-otp', data),
+  resendRegisterOtp: (data: { email: string }) =>
+    api.post('/auth/register/resend-otp', data),
+
+  // ─── Forgot Password ────────────────────────────────────────────────────
+  sendForgotPasswordOtp: (data: { email: string }) =>
+    api.post('/auth/forgot-password/send-otp', data),
+  verifyForgotPasswordOtp: (data: { email: string; otp: string }) =>
+    api.post('/auth/forgot-password/verify-otp', data),
+  resetPassword: (data: { email: string; newPassword: string; resetToken: string }) =>
+    api.post('/auth/forgot-password/reset', data),
 };
 
 // ─── Clinic Settings API ─────────────────────────────────────────────────────
@@ -199,6 +215,14 @@ export const billingAPI = {
     plan: string;
   }) =>
     api.post('/billing/verify-payment', data),
+};
+
+// ─── System API ───────────────────────────────────────────────────────────────
+export const systemAPI = {
+  getBillingStatus: () =>
+    api.get('/settings/billing'),
+  updateBillingStatus: (data: { billing_enabled: boolean }) =>
+    api.put('/settings/billing', data),
 };
 
 // ─── Public API (no auth required) ───────────────────────────────────────────

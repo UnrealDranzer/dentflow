@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatPhoneDisplay } from '@/lib/phoneValidation';
 
 interface Patient { patient_id: string; name: string; phone: string; }
 interface Service { service_id: string; service_name: string; duration_minutes: number; price: number; }
@@ -169,7 +170,7 @@ const NewAppointment = () => {
                 <SelectContent>
                   {patients.map(p => (
                     <SelectItem key={p.patient_id} value={p.patient_id.toString()}>
-                      {p.name} — {p.phone}
+                      {p.name} — {formatPhoneDisplay(p.phone)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { formatTime, formatDate } from '@/lib/formatters';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, formatPhoneDisplay, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 
 interface Patient {
   patient_id: string;
@@ -60,6 +61,7 @@ const PatientDetail = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editedPatient, setEditedPatient] = useState<Partial<Patient>>({});
+  const [phoneError, setPhoneError] = useState('');
 
   useEffect(() => {
     if (id) {
@@ -92,8 +94,16 @@ const PatientDetail = () => {
 
   const handleUpdatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editedPatient.phone && !isValidPhone(editedPatient.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError('');
     try {
-      const response = await patientsAPI.update(id as string, editedPatient);
+      const response = await patientsAPI.update(id as string, {
+        ...editedPatient,
+        phone: editedPatient.phone ? (normalizePhone(editedPatient.phone) || editedPatient.phone) : undefined,
+      });
       if (response.data.success) {
         toast.success('Patient updated successfully');
         setIsEditDialogOpen(false);
@@ -227,7 +237,7 @@ const PatientDetail = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-gray-400" />
-                <span>{patient.phone}</span>
+                <span>{formatPhoneDisplay(patient.phone)}</span>
               </div>
               {patient.email && (
                 <div className="flex items-center gap-3">
@@ -353,9 +363,18 @@ const PatientDetail = () => {
                   <Label htmlFor="edit-phone">Phone</Label>
                   <Input
                     id="edit-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={editedPatient.phone || ''}
-                    onChange={(e) => setEditedPatient({ ...editedPatient, phone: e.target.value })}
+                    onChange={(e) => {
+                      const cleaned = handlePhoneInput(e.target.value);
+                      setEditedPatient({ ...editedPatient, phone: cleaned });
+                      setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+                    }}
+                    placeholder="9876543210"
                   />
+                  {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
                 </div>
               </div>
               <div className="space-y-2">
