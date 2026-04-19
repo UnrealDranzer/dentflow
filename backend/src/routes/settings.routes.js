@@ -8,11 +8,12 @@ import {
 } from '../controllers/settings.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { tenantGuard } from '../middleware/tenantGuard.js';
+import { validate, settingsProfileSchema } from '../middleware/validate.js';
 
 const router = Router();
 
 router.get('/', authenticate, tenantGuard, getSettings);
-router.put('/profile', authenticate, tenantGuard, updateProfile);
+router.put('/profile', authenticate, tenantGuard, validate(settingsProfileSchema), updateProfile);
 router.put('/working-hours', authenticate, tenantGuard, updateWorkingHours);
 router.put('/notifications', authenticate, tenantGuard, updateNotifications);
 router.put('/password', authenticate, tenantGuard, changePassword);

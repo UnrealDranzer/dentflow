@@ -33,6 +33,7 @@ import {
   User,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, formatPhoneDisplay, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 
 interface Patient {
   id: string;
@@ -51,6 +52,7 @@ const Patients = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPatient, setNewPatient] = useState({ name: '', phone: '', email: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
 
   useEffect(() => { fetchPatients(); }, []);
 
@@ -70,9 +72,17 @@ const Patients = () => {
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (newPatient.phone && !isValidPhone(newPatient.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError('');
     try {
       setIsSubmitting(true);
-      const response = await patientsAPI.create(newPatient);
+      const response = await patientsAPI.create({
+        ...newPatient,
+        phone: normalizePhone(newPatient.phone) || newPatient.phone,
+      });
       if (response.data.success) {
         toast.success('Patient added successfully');
         setNewPatient({ name: '', phone: '', email: '' });
@@ -143,11 +153,19 @@ const Patients = () => {
                   <Label htmlFor="phone">Phone Number *</Label>
                   <Input
                     id="phone"
-                    placeholder="+91 98765 43210"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="9876543210"
                     value={newPatient.phone}
-                    onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
+                    onChange={(e) => {
+                      const cleaned = handlePhoneInput(e.target.value);
+                      setNewPatient({ ...newPatient, phone: cleaned });
+                      setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+                    }}
                     required
                   />
+                  {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email (Optional)</Label>
@@ -234,7 +252,7 @@ const Patients = () => {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-sm">
                               <Phone className="w-3 h-3 text-gray-400" />
-                              {patient.phone}
+                              {formatPhoneDisplay(patient.phone)}
                             </div>
                             {patient.email && (
                               <div className="flex items-center gap-2 text-sm">
@@ -295,7 +313,7 @@ const Patients = () => {
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                       <div className="flex items-center gap-1.5 truncate">
                         <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                        <span className="truncate">{patient.phone}</span>
+                        <span className="truncate">{formatPhoneDisplay(patient.phone)}</span>
                       </div>
                       {patient.last_visit && (
                         <div className="flex items-center gap-1.5 justify-end truncate">

@@ -1,4 +1,9 @@
 export const subscriptionGuard = (req, res, next) => {
+  // If billing is globally disabled, bypass all checks completely
+  if (req.billing_disabled) {
+    return next();
+  }
+
   const { plan, isActive, trialEndsAt, subscriptionEndsAt } = req.clinic;
   
   if (!isActive) {
@@ -28,6 +33,11 @@ export const subscriptionGuard = (req, res, next) => {
 };
 
 export const readOnlyGuard = (req, res, next) => {
+  // If billing is globally disabled, bypass read-only enforcement
+  if (req.billing_disabled) {
+    return next();
+  }
+
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     return res.status(402).json({ error: 'subscription_required', message: 'Read-only mode active. Please upgrade to make changes.' });
   }

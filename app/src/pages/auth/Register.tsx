@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/services/api';
@@ -7,10 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CheckCircle, ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
+
+type Step = 'form' | 'otp' | 'success';
 
 const Register = () => {
+  const [step, setStep] = useState<Step>('form');
   const [formData, setFormData] = useState({
     clinic_name: '',
     email: '',
@@ -18,67 +22,134 @@ const Register = () => {
     password: '',
     confirmPassword: ''
   });
+  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
   
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
+  const otpInputRef = useRef<HTMLInputElement>(null);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const t = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [resendTimer]);
+
+  // Focus OTP input when step changes
+  useEffect(() => {
+    if (step === 'otp') {
+      setTimeout(() => otpInputRef.current?.focus(), 100);
+    }
+  }, [step]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+    const { name, value } = e.target;
+    if (name === 'phone') {
+      const cleaned = handlePhoneInput(value);
+      setFormData(prev => ({ ...prev, phone: cleaned }));
+      setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validation
+    // Validations
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
 
     setIsLoading(true);
-
     try {
-      const response = await authAPI.register({
+      const response = await authAPI.sendRegisterOtp({
         clinic_name: formData.clinic_name,
         email: formData.email,
-        phone: formData.phone,
-        password: formData.password
+        phone: normalizePhone(formData.phone) || formData.phone,
+        password: formData.password,
       });
       
       if (response.data.success) {
-        const { clinic, token } = response.data.data;
-        setAuth(clinic, token);
-        setSuccess(true);
-        toast.success('Account created successfully!');
-        
-        // Redirect after showing success
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
+        toast.success('Verification code sent to your email');
+        setStep('otp');
+        setResendTimer(30);
       } else {
-        setError(response.data.message || 'Registration failed');
+        setError(response.data.message || 'Failed to send verification code');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      setError(err.response?.data?.message || 'Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (success) {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (otp.length !== 6) {
+      setError('Please enter the 6-digit code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await authAPI.verifyRegisterOtp({
+        email: formData.email,
+        otp,
+      });
+      
+      if (response.data.success) {
+        const { clinic, token } = response.data.data;
+        setAuth(clinic, token);
+        setStep('success');
+        toast.success('Account created successfully!');
+        setTimeout(() => navigate('/dashboard'), 1500);
+      } else {
+        setError(response.data.message || 'Verification failed');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    setError('');
+    
+    try {
+      const response = await authAPI.resendRegisterOtp({ email: formData.email });
+      if (response.data.success) {
+        toast.success('New verification code sent');
+        setResendTimer(30);
+        setOtp('');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to resend code');
+    }
+  };
+
+  // ─── SUCCESS STATE ──────────────────────────────────────────────────────────
+  if (step === 'success') {
     return (
       <Card className="w-full">
         <CardContent className="pt-6 text-center">
@@ -92,6 +163,94 @@ const Register = () => {
     );
   }
 
+  // ─── OTP VERIFICATION STEP ─────────────────────────────────────────────────
+  if (step === 'otp') {
+    return (
+      <Card className="w-full">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center gap-3 mb-2">
+            <button 
+              onClick={() => { setStep('form'); setError(''); setOtp(''); }}
+              className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <CardTitle className="text-2xl font-bold">Verify your email</CardTitle>
+          </div>
+          <CardDescription>
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              We sent a 6-digit code to <strong className="text-gray-700">{formData.email}</strong>
+            </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="otp">Verification Code</Label>
+              <Input
+                ref={otpInputRef}
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').substring(0, 6))}
+                className="text-center text-2xl tracking-[0.5em] font-mono"
+                required
+                disabled={isLoading}
+                autoComplete="one-time-code"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full"
+              disabled={isLoading || otp.length !== 6}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                'Verify & Create Account'
+              )}
+            </Button>
+          </form>
+
+          <div className="mt-4 text-center text-sm">
+            <span className="text-gray-500">Didn't receive the code? </span>
+            <button
+              onClick={handleResendOtp}
+              disabled={resendTimer > 0}
+              className={`font-medium ${resendTimer > 0 ? 'text-gray-400' : 'text-blue-600 hover:underline'}`}
+            >
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend code'}
+            </button>
+          </div>
+
+          <div className="mt-2 text-center">
+            <button
+              onClick={() => { setStep('form'); setError(''); setOtp(''); }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              ← Change email or details
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ─── REGISTRATION FORM (STEP 1) ────────────────────────────────────────────
   return (
     <Card className="w-full">
       <CardHeader className="space-y-1">
@@ -107,7 +266,7 @@ const Register = () => {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSendOtp} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="clinic_name">Clinic Name</Label>
             <Input
@@ -141,12 +300,17 @@ const Register = () => {
               id="phone"
               name="phone"
               type="tel"
-              placeholder="+91 98765 43210"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="9876543210"
               value={formData.phone}
               onChange={handleChange}
               required
               disabled={isLoading}
             />
+            {phoneError && (
+              <p className="text-sm text-red-500">{phoneError}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -195,10 +359,10 @@ const Register = () => {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating account...
+                Sending verification code...
               </>
             ) : (
-              'Create Account'
+              'Continue'
             )}
           </Button>
         </form>

@@ -8,6 +8,7 @@ import logger from './utils/logger.js';
 import { checkDbConnection } from './config/db.js';
 
 import authRoutes from './routes/auth.routes.js';
+import otpRoutes from './routes/otp.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import patientsRoutes from './routes/patients.routes.js';
 import appointmentsRoutes from './routes/appointments.routes.js';
@@ -25,6 +26,7 @@ import { authenticate } from './middleware/authenticate.js';
 import { tenantGuard } from './middleware/tenantGuard.js';
 import { subscriptionGuard } from './middleware/subscriptionGuard.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { validate, publicBookingSchema } from './middleware/validate.js';
 
 const app = express();
 
@@ -85,11 +87,18 @@ app.get('/health', async (req, res) => {
 
 // Public routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', otpRoutes);
 app.use('/api/billing', billingRoutes);
 app.get('/api/public/clinic/:slug', getPublicClinicBySlug);
 app.get('/api/public/available-slots', getPublicAvailableSlots);
-app.post('/api/public/book-appointment', createPublicAppointment);
+app.post('/api/public/book-appointment', validate(publicBookingSchema), createPublicAppointment);
 app.get('/api/book/:slug', getPublicClinicBySlug); // Legacy redirect
+
+import { checkBillingEnabled } from './controllers/globalSettings.controller.js';
+import globalSettingsRoutes from './routes/globalSettings.routes.js';
+
+// Apply global checkBillingEnabled to everything after public routes
+app.use(checkBillingEnabled);
 
 // Protected routes setup
 const protectedMiddleware = [authenticate, tenantGuard, subscriptionGuard];
@@ -102,6 +111,7 @@ app.use('/api/doctors', doctorsRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/clinics/settings', settingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/settings', globalSettingsRoutes);
 
 
 // Error handling

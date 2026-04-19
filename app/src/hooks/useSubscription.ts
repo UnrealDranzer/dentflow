@@ -25,14 +25,25 @@ export const useSubscription = () => {
   const [subscription, setSubscription] = useState<SubscriptionInfo>(DEFAULT);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFreeMode, setIsFreeMode] = useState(false);
 
   const fetchSubscription = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await billingAPI.getStatus();
-      if (res.data.success) {
-        setSubscription(res.data.data);
+      
+      // Also fetch system billing status
+      const [subRes, sysRes] = await Promise.all([
+        billingAPI.getStatus().catch(() => null),
+        import('@/services/api').then(m => m.systemAPI.getBillingStatus()).catch(() => null)
+      ]);
+
+      if (sysRes?.data?.success) {
+        setIsFreeMode(!sysRes.data.billing_enabled);
+      }
+
+      if (subRes?.data?.success) {
+        setSubscription(subRes.data.data);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load subscription info');
@@ -45,7 +56,8 @@ export const useSubscription = () => {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const daysLeft = subscription.is_trial && subscription.trial_ends_at
+  // In free mode, there are no trials, no past due, and it's always active.
+  const daysLeft = (!isFreeMode && subscription.is_trial && subscription.trial_ends_at)
     ? Math.max(0, Math.ceil(
         (new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       ))
@@ -57,8 +69,9 @@ export const useSubscription = () => {
     error,
     refresh: fetchSubscription,
     daysLeft,
-    isTrial: subscription.is_trial,
-    isActive: subscription.is_active,
-    isPastDue: subscription.status === 'past_due',
+    isTrial: !isFreeMode && subscription.is_trial,
+    isActive: isFreeMode || subscription.is_active,
+    isPastDue: !isFreeMode && subscription.status === 'past_due',
+    isFreeMode
   };
 };

@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 import { formatTime, formatDate, formatCurrency } from '@/lib/formatters';
+import { formatPhoneDisplay } from '@/lib/phoneValidation';
 import type { NormalizedAppointment } from '@/lib/normalizers';
 import { normalizeAppointment } from '@/lib/normalizers';
 
@@ -265,7 +266,7 @@ const AppointmentDetail = () => {
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-gray-400" />
-                <span>{appointment.patient_phone}</span>
+                <span>{formatPhoneDisplay(appointment.patient_phone)}</span>
               </div>
               {appointment.patient_email && (
                 <div className="flex items-center gap-3">

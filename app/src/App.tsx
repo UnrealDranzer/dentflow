@@ -10,6 +10,7 @@ import AuthLayout from '@/layouts/AuthLayout';
 // Pages
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
 import Dashboard from '@/pages/Dashboard';
 import Patients from '@/pages/patients/Patients';
 import PatientDetail from '@/pages/patients/PatientDetail';
@@ -33,7 +34,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full w-full">
         <Spinner className="w-8 h-8" />
       </div>
     );
@@ -52,7 +53,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full w-full">
         <Spinner className="w-8 h-8" />
       </div>
     );
@@ -114,6 +115,14 @@ function App() {
             element={
               <PublicRoute>
                 <Register />
+              </PublicRoute>
+            } 
+          />
+          <Route 
+            path="/forgot-password" 
+            element={
+              <PublicRoute>
+                <ForgotPassword />
               </PublicRoute>
             } 
           />

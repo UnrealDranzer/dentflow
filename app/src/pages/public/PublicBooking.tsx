@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { handlePhoneInput, isValidPhone, normalizePhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 
 interface Clinic {
   clinic_id: string;
@@ -44,6 +45,7 @@ const PublicBooking = () => {
   const [isSubmitting,   setIsSubmitting]   = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSuccess,      setIsSuccess]      = useState(false);
+  const [phoneError,     setPhoneError]     = useState('');
 
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '',
@@ -112,6 +114,11 @@ const PublicBooking = () => {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (!isValidPhone(formData.phone)) {
+      setPhoneError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError('');
     if (!clinic) return;
 
     try {
@@ -119,7 +126,7 @@ const PublicBooking = () => {
       const response = await publicAPI.bookAppointment({
         clinic_id:        String(clinic?.clinic_id || clinic?.id || ''),
         name:             formData.name,
-        phone:            formData.phone,
+        phone:            normalizePhone(formData.phone) || formData.phone,
         email:            formData.email || undefined,
         service_id:       formData.service_id,
         doctor_id:        (formData.doctor_id && formData.doctor_id !== 'any') ? formData.doctor_id : undefined,
@@ -146,7 +153,7 @@ const PublicBooking = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-full w-full flex items-center justify-center bg-gray-50 overflow-y-auto">
         <Spinner className="w-8 h-8" />
       </div>
     );
@@ -154,7 +161,7 @@ const PublicBooking = () => {
 
   if (!clinic) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-full w-full flex items-center justify-center bg-gray-50 overflow-y-auto">
         <Card className="w-full max-w-md mx-4">
           <CardContent className="pt-6 text-center">
             <p className="text-gray-500">Clinic not found or inactive</p>
@@ -166,8 +173,8 @@ const PublicBooking = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-4">
-        <Card className="w-full max-w-md">
+      <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-4 overflow-y-auto">
+        <Card className="w-full max-w-md my-auto">
           <CardContent className="pt-6 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
@@ -191,8 +198,8 @@ const PublicBooking = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="h-full w-full bg-gray-50 py-8 px-4 overflow-y-auto">
+      <div className="max-w-2xl mx-auto my-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -244,11 +251,18 @@ const PublicBooking = () => {
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="+91 98765 43210"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="9876543210"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      const cleaned = handlePhoneInput(e.target.value);
+                      setFormData({ ...formData, phone: cleaned });
+                      setPhoneError(cleaned.length > 0 && cleaned.length < 10 ? PHONE_ERROR_MESSAGE : '');
+                    }}
                     required
                   />
+                  {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
                 </div>
 
                 <div className="space-y-2">
