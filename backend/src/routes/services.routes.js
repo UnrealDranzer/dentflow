@@ -3,12 +3,13 @@ import { getServices, createService, updateService, deleteService } from '../con
 import { authenticate, requireRole } from '../middleware/authenticate.js';
 import { tenantGuard } from '../middleware/tenantGuard.js';
 import { subscriptionGuard } from '../middleware/subscriptionGuard.js';
+import { validate, serviceSchema } from '../middleware/validate.js';
 
 const router = Router();
 
 router.get('/', authenticate, tenantGuard, subscriptionGuard, getServices);
-router.post('/', authenticate, tenantGuard, subscriptionGuard, createService);
-router.put('/:id', authenticate, tenantGuard, subscriptionGuard, updateService);
+router.post('/', authenticate, tenantGuard, subscriptionGuard, validate(serviceSchema), createService);
+router.put('/:id', authenticate, tenantGuard, subscriptionGuard, validate(serviceSchema), updateService);
 router.delete('/:id', authenticate, tenantGuard, subscriptionGuard, requireRole('admin'), deleteService);
 
 export default router;

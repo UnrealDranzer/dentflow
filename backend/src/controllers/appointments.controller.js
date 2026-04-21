@@ -278,18 +278,28 @@ export const updateAppointmentStatus = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
 
+    // Validate status value
+    const validStatuses = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
     const result = await query(
       `UPDATE appointments 
-       SET status = $1, notes = $2 
-       WHERE id = $3 
+       SET status = COALESCE($1, status), notes = COALESCE($2, notes), updated_at = NOW()
+       WHERE id = $3 AND clinic_id = $4
        RETURNING *`,
-      [status, notes || null, id]
+      [status || null, notes || null, id, req.clinicId]
     );
 
-    res.json({ success: true, data: result.rows[0] });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    res.json({ success: true, data: { appointment: result.rows[0] } });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, message: 'Failed to update appointment status' });
   }
 };
 

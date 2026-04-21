@@ -25,13 +25,13 @@ export const getServices = async (req, res, next) => {
 export const createService = async (req, res, next) => {
   try {
     // Accept both frontend field names (service_name, duration_minutes) and DB names (name, duration_mins)
-    const name = req.body.name || req.body.service_name;
-    const description = req.body.description || null;
-    const duration_mins = req.body.duration_mins || req.body.duration_minutes || 30;
-    const price = req.body.price || 0;
+    const name = (req.body.name || req.body.service_name || '').trim();
+    const description = (req.body.description || '').trim() || null;
+    const duration_mins = parseInt(req.body.duration_mins || req.body.duration_minutes, 10) || 30;
+    const price = parseFloat(req.body.price) || 0;
     const color_code = req.body.color_code || '#3B82F6';
 
-    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    if (!name) return res.status(400).json({ success: false, message: 'Service name is required' });
     if (!Number.isInteger(duration_mins) || duration_mins <= 0) return res.status(400).json({ success: false, message: 'Duration must be an integer > 0' });
     if (isNaN(price) || price < 0) return res.status(400).json({ success: false, message: 'Price must be a number >= 0' });
 
@@ -53,10 +53,10 @@ export const createService = async (req, res, next) => {
 export const updateService = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const name = req.body.name || req.body.service_name;
-    const description = req.body.description;
-    const duration_mins = req.body.duration_mins || req.body.duration_minutes;
-    const price = req.body.price;
+    const name = (req.body.name || req.body.service_name || '').trim() || undefined;
+    const description = req.body.description !== undefined ? (req.body.description || '').trim() : undefined;
+    const duration_mins = parseInt(req.body.duration_mins || req.body.duration_minutes, 10) || undefined;
+    const price = req.body.price !== undefined ? (parseFloat(req.body.price) || 0) : undefined;
     const color_code = req.body.color_code;
     const is_active = req.body.is_active;
 

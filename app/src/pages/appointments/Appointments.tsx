@@ -138,6 +138,7 @@ const Appointments = () => {
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="no_show">No Show</SelectItem>
                 </SelectContent>
               </Select>
               <Input
@@ -170,11 +171,11 @@ const Appointments = () => {
               {filteredAppointments.map((appointment) => (
                 <div
                   key={appointment.appointment_id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors w-full overflow-hidden"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div
-                      className="w-14 h-14 rounded-lg flex flex-col items-center justify-center text-white"
+                      className="w-14 h-14 rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0"
                       style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
                     >
                       <span className="text-xs font-medium">
@@ -184,13 +185,13 @@ const Appointments = () => {
                         {formatTime(appointment.appointment_time)}
                       </span>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{appointment.patient_name}</h4>
-                      <p className="text-sm text-gray-500">{appointment.service_name}</p>
-                      <p className="text-xs text-gray-400">{appointment.duration_mins} minutes</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate">{appointment.patient_name || '—'}</h4>
+                      <p className="text-sm text-gray-500 truncate">{appointment.service_name || '—'}</p>
+                      <p className="text-xs text-gray-400">{appointment.duration_mins || 0} minutes</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-shrink-0 ml-2">
                     {getStatusBadge(appointment.status || 'scheduled')}
                     <Button asChild variant="ghost" size="sm">
                       <Link to={`/appointments/${appointment.appointment_id}`}>

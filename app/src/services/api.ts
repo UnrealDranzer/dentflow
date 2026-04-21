@@ -177,7 +177,7 @@ export const appointmentsAPI = {
   create: (data: Partial<Appointment>) =>
     api.post('/appointments', data),
   update: (id: string, data: Partial<Appointment>) =>
-    api.put(`/appointments/${id}`, data),
+    api.patch(`/appointments/${id}`, data),
   delete: (id: string) =>
     api.delete(`/appointments/${id}`),
   getAvailableSlots: (params: { date: string; service_id: string; doctor_id?: string }) =>

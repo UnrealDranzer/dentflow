@@ -153,7 +153,7 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" richColors offset={60} />
     </Router>
   );
 }

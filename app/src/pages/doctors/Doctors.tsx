@@ -275,12 +275,25 @@ const Doctors = () => {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newDoc.name?.trim()) {
+      toast.error('Doctor name is required');
+      return;
+    }
     try {
       setIsSaving(true);
       const res = await doctorsAPI.create({
-        ...newDoc,
+        name: newDoc.name.trim(),
+        specialization: newDoc.specialization?.trim() || '',
         phone: newDoc.phone ? (normalizePhone(newDoc.phone) || newDoc.phone) : undefined,
+        email: newDoc.email?.trim() || '',
+        qualification: newDoc.qualification?.trim() || '',
         experience_years: newDoc.experience_years ? Number(newDoc.experience_years) : undefined,
+        color_tag: newDoc.color_tag || '#3B82F6',
+        working_days: newDoc.working_days,
+        start_time: newDoc.start_time,
+        end_time: newDoc.end_time,
+        break_start: newDoc.break_start,
+        break_end: newDoc.break_end,
         slot_interval: Number(newDoc.slot_interval),
       });
       if (res.data.success) {
@@ -299,16 +312,20 @@ const Doctors = () => {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editDoc) return;
+    if (!editDoc.name?.trim()) {
+      toast.error('Doctor name is required');
+      return;
+    }
     try {
       setIsSaving(true);
       const res = await doctorsAPI.update(editDoc.doctor_id, {
-        name: editDoc.name,
-        specialization: editDoc.specialization,
+        name: editDoc.name.trim(),
+        specialization: editDoc.specialization?.trim() || '',
         phone: editDoc.phone ? (normalizePhone(editDoc.phone) || editDoc.phone) : undefined,
-        email: editDoc.email,
-        qualification: editDoc.qualification,
+        email: editDoc.email?.trim() || '',
+        qualification: editDoc.qualification?.trim() || '',
         experience_years: editDoc.experience_years ? Number(editDoc.experience_years) : undefined,
-        color_tag: editDoc.color_tag,
+        color_tag: editDoc.color_tag || '#3B82F6',
         working_days: editDoc.working_days,
         start_time: editDoc.start_time,
         end_time: editDoc.end_time,
@@ -439,7 +456,7 @@ const Doctors = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(doc => (
-            <Card key={doc.doctor_id} className={`relative ${!doc.is_active ? 'opacity-60' : ''}`}>
+            <Card key={doc.doctor_id} className={`relative w-full overflow-hidden ${!doc.is_active ? 'opacity-60' : ''}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
                   <div
@@ -450,7 +467,7 @@ const Doctors = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <CardTitle className="text-base">{doc.name}</CardTitle>
+                      <CardTitle className="text-base truncate">{doc.name}</CardTitle>
                       <Badge variant={doc.is_active ? 'default' : 'secondary'} className="text-xs">
                         {doc.is_active ? 'Active' : 'Inactive'}
                       </Badge>

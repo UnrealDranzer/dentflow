@@ -97,20 +97,54 @@ export const patientSchema = z.object({
 
 export const doctorSchema = z.object({
   name: z.string().min(1, 'Doctor name is required'),
-  specialization: z.string().optional().or(z.literal('')),
+  specialization: z.string().optional().or(z.literal('')).or(z.null()),
   phone: optionalPhoneTransform,
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  qualification: z.string().optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional().or(z.literal('')).or(z.null()),
+  qualification: z.string().optional().or(z.literal('')).or(z.null()),
   experience_years: z.number().int().nonnegative().optional().or(z.null()),
   experience_yrs: z.number().int().nonnegative().optional().or(z.null()),
-  color_tag: z.string().optional(),
+  color_tag: z.string().optional().or(z.null()),
   working_days: z.any().optional(),
   start_time: z.string().optional().or(z.null()),
   end_time: z.string().optional().or(z.null()),
   break_start: z.string().optional().or(z.null()),
   break_end: z.string().optional().or(z.null()),
-  slot_interval: z.number().int().positive().optional(),
+  slot_interval: z.number().int().positive().optional().or(z.null()),
   is_active: z.boolean().optional(),
+});
+
+// Separate schema for doctor updates — all fields optional so partial updates work
+export const doctorUpdateSchema = z.object({
+  name: z.string().min(1, 'Doctor name is required').optional(),
+  specialization: z.string().optional().or(z.literal('')).or(z.null()),
+  phone: optionalPhoneTransform,
+  email: z.string().email('Invalid email').optional().or(z.literal('')).or(z.null()),
+  qualification: z.string().optional().or(z.literal('')).or(z.null()),
+  experience_years: z.number().int().nonnegative().optional().or(z.null()),
+  experience_yrs: z.number().int().nonnegative().optional().or(z.null()),
+  color_tag: z.string().optional().or(z.null()),
+  working_days: z.any().optional(),
+  start_time: z.string().optional().or(z.null()),
+  end_time: z.string().optional().or(z.null()),
+  break_start: z.string().optional().or(z.null()),
+  break_end: z.string().optional().or(z.null()),
+  slot_interval: z.number().int().positive().optional().or(z.null()),
+  is_active: z.boolean().optional(),
+});
+
+// Service validation schemas
+export const serviceSchema = z.object({
+  service_name: z.string().min(1, 'Service name is required').optional(),
+  name: z.string().min(1, 'Service name is required').optional(),
+  description: z.string().optional().or(z.literal('')).or(z.null()),
+  duration_minutes: z.number().int().min(1, 'Duration must be at least 1 minute').optional(),
+  duration_mins: z.number().int().min(1, 'Duration must be at least 1 minute').optional(),
+  price: z.number().min(0, 'Price must be >= 0').optional(),
+  color_code: z.string().optional(),
+  is_active: z.boolean().optional(),
+}).refine(data => data.service_name || data.name, {
+  message: 'Service name is required',
+  path: ['service_name'],
 });
 
 export const appointmentSchema = z.object({

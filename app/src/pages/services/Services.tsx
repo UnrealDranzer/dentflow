@@ -75,8 +75,24 @@ const Services = () => {
 
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = newService.service_name?.trim();
+    if (!trimmedName) {
+      toast.error('Service name is required');
+      return;
+    }
+    if (!newService.duration_minutes || newService.duration_minutes < 1) {
+      toast.error('Duration must be at least 1 minute');
+      return;
+    }
+    if (newService.price < 0) {
+      toast.error('Price cannot be negative');
+      return;
+    }
     try {
-      const response = await servicesAPI.create(newService);
+      const response = await servicesAPI.create({
+        ...newService,
+        service_name: trimmedName,
+      });
       if (response.data.success) {
         toast.success('Service added successfully');
         setNewService({
@@ -97,11 +113,23 @@ const Services = () => {
   const handleUpdateService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService) return;
-
+    const trimmedName = selectedService.service_name?.trim();
+    if (!trimmedName) {
+      toast.error('Service name is required');
+      return;
+    }
+    if (!selectedService.duration_minutes || selectedService.duration_minutes < 1) {
+      toast.error('Duration must be at least 1 minute');
+      return;
+    }
+    if (selectedService.price < 0) {
+      toast.error('Price cannot be negative');
+      return;
+    }
     try {
       const response = await servicesAPI.update(String(selectedService.service_id), {
-        service_name: selectedService.service_name,
-        description: selectedService.description,
+        service_name: trimmedName,
+        description: selectedService.description || '',
         duration_minutes: selectedService.duration_minutes,
         price: selectedService.price,
         color_code: selectedService.color_code,
@@ -243,7 +271,7 @@ const Services = () => {
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {services.map((service) => (
-          <Card key={service.service_id} className={!service.is_active ? 'opacity-60' : ''}>
+          <Card key={service.service_id} className={`w-full overflow-hidden ${!service.is_active ? 'opacity-60' : ''}`}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -254,7 +282,7 @@ const Services = () => {
                     <Stethoscope className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">{service.service_name}</CardTitle>
+                    <CardTitle className="text-lg truncate">{service.service_name || '—'}</CardTitle>
                     {!service.is_active && (
                       <Badge variant="secondary">Inactive</Badge>
                     )}
@@ -268,12 +296,12 @@ const Services = () => {
               </p>
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2 text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  {service.duration_minutes} min
+                  <Clock className="w-4 h-4 flex-shrink-0" />
+                  {service.duration_minutes || 0} min
                 </div>
                 <div className="flex items-center gap-2 text-gray-900 font-semibold">
-                  <IndianRupee className="w-4 h-4" />
-                  {service.price.toLocaleString()}
+                  <IndianRupee className="w-4 h-4 flex-shrink-0" />
+                  {(service.price ?? 0).toLocaleString()}
                 </div>
               </div>
               <div className="flex gap-2 mt-4">

@@ -49,9 +49,13 @@ export const getDoctor = async (req, res, next) => {
 
 export const createDoctor = async (req, res, next) => {
   try {
-    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval } = req.body;
+    const { specialization, phone, email, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval } = req.body;
+    const name = (req.body.name || '').trim();
+    const qualification = (req.body.qualification || '').trim();
     // Accept both frontend (experience_years) and DB (experience_yrs) field names
     const experience_yrs = req.body.experience_yrs || req.body.experience_years || null;
+
+    if (!name) return res.status(400).json({ success: false, message: 'Doctor name is required' });
 
     const result = await query(
       `INSERT INTO doctors (clinic_id, name, specialization, phone, email, qualification, experience_yrs, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval)
@@ -61,7 +65,7 @@ export const createDoctor = async (req, res, next) => {
                  color_tag, working_days, start_time, end_time,
                  break_start, break_end, slot_interval,
                  is_active, created_at, updated_at`,
-      [req.clinicId, name, specialization || null, phone || null, email || null, qualification || null, experience_yrs, color_tag || '#3B82F6', working_days || null, start_time || null, end_time || null, break_start || null, break_end || null, slot_interval || 30]
+      [req.clinicId, name, (specialization || '').trim() || null, phone || null, email || null, qualification || null, experience_yrs, color_tag || '#3B82F6', working_days || null, start_time || null, end_time || null, break_start || null, break_end || null, slot_interval || 30]
     );
 
     res.status(201).json({ success: true, data: { doctor: result.rows[0] } });
@@ -73,7 +77,9 @@ export const createDoctor = async (req, res, next) => {
 export const updateDoctor = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, specialization, phone, email, qualification, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval, is_active } = req.body;
+    const { specialization, phone, email, color_tag, working_days, start_time, end_time, break_start, break_end, slot_interval, is_active } = req.body;
+    const name = req.body.name !== undefined ? (req.body.name || '').trim() : undefined;
+    const qualification = req.body.qualification !== undefined ? (req.body.qualification || '').trim() : undefined;
     const experience_yrs = req.body.experience_yrs || req.body.experience_years;
 
     const result = await query(
