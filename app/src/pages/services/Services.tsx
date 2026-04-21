@@ -152,8 +152,10 @@ const Services = () => {
       const response = await servicesAPI.delete(String(selectedService.service_id));
       if (response.data.success) {
         toast.success('Service deleted successfully');
+        // Immediately remove from local state for instant UI feedback
+        setServices(prev => prev.filter(s => s.service_id !== selectedService.service_id));
         setIsDeleteDialogOpen(false);
-        fetchServices();
+        setSelectedService(null);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete service');

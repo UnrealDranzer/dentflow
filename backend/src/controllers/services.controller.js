@@ -90,8 +90,28 @@ export const deleteService = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Check if service has active appointments
+    const appointmentCheck = await query(
+      `SELECT COUNT(*) as count FROM appointments 
+       WHERE service_id = $1 AND clinic_id = $2 AND status IN ('scheduled', 'confirmed')`,
+      [id, req.clinicId]
+    );
+    
+    if (parseInt(appointmentCheck.rows[0].count) > 0) {
+      // Soft-delete if active appointments exist
+      const result = await query(
+        'UPDATE services SET is_active = false, updated_at = NOW() WHERE id = $1 AND clinic_id = $2 RETURNING id',
+        [id, req.clinicId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Service not found' });
+      }
+      return res.json({ success: true, data: { message: 'Service deactivated (has active appointments)' } });
+    }
+
+    // Hard delete if no active appointments
     const result = await query(
-      'UPDATE services SET is_active = false, updated_at = NOW() WHERE id = $1 AND clinic_id = $2 RETURNING id',
+      'DELETE FROM services WHERE id = $1 AND clinic_id = $2 RETURNING id',
       [id, req.clinicId]
     );
 
@@ -99,8 +119,20 @@ export const deleteService = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
-    res.json({ success: true, data: { message: 'Service deactivated' } });
+    res.json({ success: true, data: { message: 'Service deleted' } });
   } catch (error) {
+    // If FK constraint prevents deletion, fall back to soft-delete
+    if (error.code === '23503') {
+      try {
+        await query(
+          'UPDATE services SET is_active = false, updated_at = NOW() WHERE id = $1 AND clinic_id = $2',
+          [id, req.clinicId]
+        );
+        return res.json({ success: true, data: { message: 'Service deactivated' } });
+      } catch (softErr) {
+        return next(softErr);
+      }
+    }
     next(error);
   }
 };

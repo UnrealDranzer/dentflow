@@ -53,7 +53,7 @@ const AppointmentDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState<string>("scheduled");
+  const [newStatus, setNewStatus] = useState<string>("confirmed");
   const [statusNotes, setStatusNotes] = useState('');
 
   useEffect(() => {
@@ -167,7 +167,11 @@ const AppointmentDetail = () => {
         </div>
         <div className="flex gap-3">
           {canUpdateStatus && (
-            <Button onClick={() => setIsUpdateDialogOpen(true)}>
+            <Button onClick={() => {
+              setNewStatus('confirmed');
+              setStatusNotes('');
+              setIsUpdateDialogOpen(true);
+            }}>
               <Edit className="w-4 h-4 mr-2" />
               Update Status
             </Button>
@@ -293,12 +297,14 @@ const AppointmentDetail = () => {
             <div className="space-y-2">
               <Label>New Status</Label>
               <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                   <SelectItem value="no_show">No Show</SelectItem>
                 </SelectContent>
               </Select>
