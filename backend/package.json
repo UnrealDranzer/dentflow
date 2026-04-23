@@ -14,9 +14,11 @@
     "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.0",
+    "node-cron": "^4.2.1",
     "pg": "^8.11.0",
     "razorpay": "^2.9.0",
     "resend": "^6.9.4",
+    "twilio": "^6.0.0",
     "winston": "^3.11.0",
     "zod": "^3.22.0"
   },

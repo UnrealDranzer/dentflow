@@ -1,4 +1,6 @@
 import { query, withTransaction } from '../config/db.js';
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import logger from '../utils/logger.js';
 
 // ─── Helpers ───────────────────
 const timeToMinutes = (t) => {
@@ -236,6 +238,30 @@ export const createAppointment = async (req, res, next) => {
       return insertRes.rows[0];
     });
 
+    // ─── Fire-and-forget WhatsApp confirmation ───────────────
+    // Non-blocking: never delays the API response
+    (async () => {
+      try {
+        const patientRes = await query(
+          'SELECT phone FROM patients WHERE id = $1 AND clinic_id = $2',
+          [appointment.patient_id, req.clinicId]
+        );
+        const phone = patientRes.rows[0]?.phone;
+        if (phone) {
+          const dateStr = appointment.scheduled_at
+            ? new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { dateStyle: 'medium' })
+            : 'TBD';
+          const timeStr = appointment.scheduled_at
+            ? new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+            : 'TBD';
+
+          const message = `🦷 Appointment Confirmed\nDate: ${dateStr}\nTime: ${timeStr}\nClinic: DentFlow`;
+          sendWhatsAppMessage(phone, message);
+        }
+      } catch (err) {
+        logger.error('WhatsApp notification failed (non-blocking)', { error: err.message });
+      }
+    })();
 
     res.status(201).json({ success: true, data: { appointment } });
   } catch (error) {
