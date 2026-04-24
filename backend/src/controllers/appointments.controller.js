@@ -99,7 +99,20 @@ export const getAppointments = async (req, res, next) => {
       params.push(status);
     }
 
-    sql += ` ORDER BY a.scheduled_at ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    sql += ` ORDER BY
+      CASE
+        WHEN a.status IN ('scheduled','confirmed') THEN 1
+        WHEN a.status IN ('cancelled','no_show') THEN 2
+        WHEN a.status = 'completed' THEN 3
+        ELSE 4
+      END ASC,
+      CASE
+        WHEN a.status IN ('scheduled','confirmed') THEN a.scheduled_at
+      END ASC,
+      CASE
+        WHEN a.status NOT IN ('scheduled','confirmed') THEN a.scheduled_at
+      END DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
     const result = await query(sql, params);
