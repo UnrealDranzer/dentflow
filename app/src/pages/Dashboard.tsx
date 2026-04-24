@@ -4,7 +4,6 @@ import { analyticsAPI, appointmentsAPI } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Spinner } from '@/components/ui/spinner';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -120,24 +119,6 @@ const Dashboard = () => {
       </Badge>
     );
   };
-  // ENHANCED SAFETY: Defensive extraction to prevent "total_appointments" crash.
-  // We use local variables and multiple fallbacks to ensure zero-risk rendering.
-  const rawStats = stats || {};
-  const todayObj = (rawStats as any).today || (rawStats as any).stats?.today || {};
-  const monthlyObj = (rawStats as any).monthlyStats || (rawStats as any).stats?.monthlyStats || {};
-
-  const safeStats = {
-    today_total: todayObj?.total_appointments ?? monthlyObj?.total ?? 0,
-    today_scheduled: todayObj?.scheduled ?? 0,
-    today_completed: todayObj?.completed ?? 0,
-    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0,
-    new_patients: stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0,
-    revenue: stats?.monthly_revenue ?? monthlyObj?.revenue ?? 0,
-  };
-
-
-  console.log("[DentFlow] Dashboard rendering with safety lockdown v4", { hasStats: !!stats });
-
   if (isLoading) {
     return (
       <div className="space-y-6">
