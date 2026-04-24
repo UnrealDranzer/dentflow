@@ -32,6 +32,8 @@ import { normalizeAppointments } from '@/lib/normalizers';
 // Using NormalizedAppointment instead of fragile inline interface
 
 
+import { Skeleton } from '@/components/ui/skeleton';
+
 const Appointments = () => {
   const [appointments, setAppointments] = useState<NormalizedAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,8 +94,46 @@ const Appointments = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner className="w-8 h-8" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-11 sm:h-9 w-40" />
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Skeleton className="h-10 flex-1" />
+              <div className="flex gap-4">
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-40" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg w-full">
+                  <div className="flex items-center gap-4 flex-1">
+                    <Skeleton className="rounded-lg h-12 w-[90px] sm:w-[100px]" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-5 w-1/3" />
+                      <Skeleton className="h-4 w-1/4" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -175,13 +215,13 @@ const Appointments = () => {
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div
-                      className="w-14 h-14 rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0"
+                      className="rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0 px-3 py-2 min-w-[90px] sm:min-w-[100px]"
                       style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
                     >
-                      <span className="text-xs font-medium">
+                      <span className="text-xs font-medium opacity-90 text-center">
                         {formatDate(appointment.appointment_date)}
                       </span>
-                      <span className="text-sm font-bold">
+                      <span className="text-sm font-bold mt-0.5 whitespace-nowrap">
                         {formatTime(appointment.appointment_time)}
                       </span>
                     </div>

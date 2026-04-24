@@ -80,6 +80,7 @@
     overscroll-behavior: none;
     touch-action: manipulation;
     -webkit-overflow-scrolling: touch;
+    -webkit-text-size-adjust: 100%;
     -webkit-user-select: none;
     user-select: none;
   }
@@ -95,6 +96,17 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Bigger tap targets on mobile */
+  @media (max-width: 640px) {
+    button,
+    [role="button"],
+    select,
+    input,
+    textarea {
+      min-height: 44px;
+    }
   }
 }
 

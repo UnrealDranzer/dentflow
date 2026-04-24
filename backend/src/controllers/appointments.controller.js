@@ -171,6 +171,26 @@ export const createAppointment = async (req, res, next) => {
     const sAt = appointment_date && appointment_time ? `${appointment_date} ${appointment_time}` : (scheduledAt);
     let dMins = duration_mins || durationMins;
 
+    // Backend validation for past time
+    if (appointment_date && appointment_time) {
+      const nowIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      const y = nowIST.getFullYear();
+      const m = String(nowIST.getMonth() + 1).padStart(2, '0');
+      const d = String(nowIST.getDate()).padStart(2, '0');
+      const today = `${y}-${m}-${d}`;
+      const currentHours = nowIST.getHours();
+      const currentMinutes = nowIST.getMinutes();
+
+      const [sh, sm] = appointment_time.split(':').map(Number);
+      if (appointment_date < today || (appointment_date === today && (sh < currentHours || (sh === currentHours && sm < currentMinutes)))) {
+        return res.status(400).json({ success: false, message: 'Cannot book an appointment in the past' });
+      }
+    } else if (scheduledAt) {
+      if (new Date(scheduledAt) < new Date()) {
+        return res.status(400).json({ success: false, message: 'Cannot book an appointment in the past' });
+      }
+    }
+
     // ISSUE 1: Fetch service details to ensure correct persistence
     let appointmentType = type || "Consultation";
     let appointmentAmount = amount || 0;

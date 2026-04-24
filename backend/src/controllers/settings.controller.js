@@ -320,6 +320,20 @@ export const createPublicAppointment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'All required fields must be provided.' });
     }
 
+    // Backend validation for past time
+    const nowIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    const y = nowIST.getFullYear();
+    const m = String(nowIST.getMonth() + 1).padStart(2, '0');
+    const d = String(nowIST.getDate()).padStart(2, '0');
+    const today = `${y}-${m}-${d}`;
+    const currentHours = nowIST.getHours();
+    const currentMinutes = nowIST.getMinutes();
+
+    const [sh, sm] = appointment_time.split(':').map(Number);
+    if (appointment_date < today || (appointment_date === today && (sh < currentHours || (sh === currentHours && sm < currentMinutes)))) {
+      return res.status(400).json({ success: false, message: 'Cannot book an appointment in the past' });
+    }
+
     const result = await withTransaction(async (client) => {
       // 1. Find or create patient
       let patientRes = await client.query(

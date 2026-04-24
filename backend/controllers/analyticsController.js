@@ -4,6 +4,19 @@ const getDashboardOverview = async (req, res) => {
   try {
     const clinic_id = req.clinic.clinic_id;
 
+    const range = req.query.range || 'monthly';
+    let revenueCondition = `EXTRACT(MONTH FROM a.appointment_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM a.appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)`;
+    
+    if (range === 'today') {
+      revenueCondition = `a.appointment_date = CURRENT_DATE`;
+    } else if (range === 'yesterday') {
+      revenueCondition = `a.appointment_date = CURRENT_DATE - INTERVAL '1 day'`;
+    } else if (range === 'weekly') {
+      revenueCondition = `a.appointment_date >= CURRENT_DATE - INTERVAL '7 days' AND a.appointment_date <= CURRENT_DATE`;
+    } else if (range === 'yearly') {
+      revenueCondition = `EXTRACT(YEAR FROM a.appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)`;
+    }
+
     // Parallel execution for dashboard cards
     const queries = [
       // Today's summary
@@ -30,13 +43,12 @@ const getDashboardOverview = async (req, res) => {
          AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
         [clinic_id]
       ),
-      // Monthly revenue
+      // Filtered revenue
       pool.query(
         `SELECT COALESCE(SUM(s.price), 0) as total FROM appointments a
          JOIN services s ON a.service_id = s.service_id
          WHERE a.clinic_id = $1 AND a.status = 'completed'
-         AND EXTRACT(MONTH FROM a.appointment_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-         AND EXTRACT(YEAR FROM a.appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+         AND ${revenueCondition}`,
         [clinic_id]
       ),
       // Recent appointments

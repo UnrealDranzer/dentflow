@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   CalendarDays,
   Users,
@@ -40,6 +48,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [revenueFilter, setRevenueFilter] = useState<string>('monthly');
+  const [isRevenueLoading, setIsRevenueLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -50,7 +60,7 @@ const Dashboard = () => {
       setIsLoading(true);
       
       const [overviewRes, todayRes] = await Promise.all([
-        analyticsAPI.getDashboardOverview(),
+        analyticsAPI.getDashboardOverview({ range: revenueFilter }),
         appointmentsAPI.getToday()
       ]);
 
@@ -72,6 +82,25 @@ const Dashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchRevenue = async () => {
+      try {
+        setIsRevenueLoading(true);
+        const overviewRes = await analyticsAPI.getDashboardOverview({ range: revenueFilter });
+        const statsPayload = overviewRes.data?.data || overviewRes.data || {};
+        const newStats = statsPayload.stats || statsPayload;
+        setStats(prev => prev ? { ...prev, ...newStats, monthly_revenue: newStats.monthly_revenue } : newStats);
+      } catch (error) {
+        console.error('Failed to update revenue:', error);
+      } finally {
+        setIsRevenueLoading(false);
+      }
+    };
+    if (stats !== null) {
+      fetchRevenue();
+    }
+  }, [revenueFilter]);
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
       scheduled: { variant: 'default', icon: Clock },
@@ -91,11 +120,88 @@ const Dashboard = () => {
       </Badge>
     );
   };
+  // ENHANCED SAFETY: Defensive extraction to prevent "total_appointments" crash.
+  // We use local variables and multiple fallbacks to ensure zero-risk rendering.
+  const rawStats = stats || {};
+  const todayObj = (rawStats as any).today || (rawStats as any).stats?.today || {};
+  const monthlyObj = (rawStats as any).monthlyStats || (rawStats as any).stats?.monthlyStats || {};
+
+  const safeStats = {
+    today_total: todayObj?.total_appointments ?? monthlyObj?.total ?? 0,
+    today_scheduled: todayObj?.scheduled ?? 0,
+    today_completed: todayObj?.completed ?? 0,
+    upcoming: stats?.upcoming_appointments ?? (stats as any)?.upcomingCount ?? 0,
+    new_patients: stats?.new_patients_this_month ?? (stats as any)?.totalPatients ?? 0,
+    revenue: stats?.monthly_revenue ?? monthlyObj?.revenue ?? 0,
+  };
+
+
+  console.log("[DentFlow] Dashboard rendering with safety lockdown v4", { hasStats: !!stats });
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner className="w-8 h-8" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-40" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="w-10 h-10 rounded-lg" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <Skeleton className="h-6 w-32 mb-2" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-8 w-24" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg w-full">
+                  <div className="flex items-center gap-4 flex-1">
+                    <Skeleton className="rounded-lg h-10 w-[85px]" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-5 w-40" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <Card key={i}>
+              <CardContent className="pt-6">
+                <Skeleton className="w-8 h-8 mb-4 rounded-full" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-4 w-48 mb-4" />
+                <Skeleton className="h-9 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -192,13 +298,24 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Monthly Revenue</CardTitle>
+            <Select value={revenueFilter} onValueChange={setRevenueFilter}>
+              <SelectTrigger className="w-[110px] h-7 text-sm font-medium text-gray-500 border-none bg-transparent hover:bg-gray-100 shadow-none p-1 focus:ring-0 -ml-1">
+                <SelectValue placeholder="Revenue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="yesterday">Yesterday</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="yearly">Yearly</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className={`text-2xl font-bold transition-opacity duration-200 ${isRevenueLoading ? 'opacity-50' : 'opacity-100'}`}>
               {formatCurrency(safeStats.revenue)}
             </div>
             <p className="text-xs text-gray-500 mt-1">From completed appointments</p>
@@ -238,7 +355,7 @@ const Dashboard = () => {
                 >
                   <div className="flex items-center gap-4">
                     <div 
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                      className="rounded-lg flex items-center justify-center text-white font-bold text-sm px-3 py-2 min-w-[85px] whitespace-nowrap"
                       style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
                     >
                       {formatTime(appointment.appointment_time)}

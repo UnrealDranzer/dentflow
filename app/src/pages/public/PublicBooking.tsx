@@ -98,7 +98,28 @@ const PublicBooking = () => {
       if (formData.doctor_id && formData.doctor_id !== 'any') params.doctor_id = formData.doctor_id;
       const response = await publicAPI.getAvailableSlots(params);
       if (response.data.success) {
-        setAvailableSlots(response.data.data.slots);
+        const fetchedSlots = response.data.data.slots;
+        
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const localToday = `${y}-${m}-${d}`;
+
+        let finalSlots = fetchedSlots;
+        if (formData.appointment_date === localToday) {
+          const currentHours = now.getHours();
+          const currentMinutes = now.getMinutes();
+          finalSlots = fetchedSlots.filter((slot: any) => {
+            const timeStr = typeof slot === 'string' ? slot : slot.time;
+            if (!timeStr) return true;
+            const [sh, sm] = timeStr.split(':').map(Number);
+            if (sh > currentHours) return true;
+            if (sh === currentHours && sm > currentMinutes) return true;
+            return false;
+          });
+        }
+        setAvailableSlots(finalSlots);
       }
     } catch (error) {
       console.error('Failed to fetch available slots:', error);

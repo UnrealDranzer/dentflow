@@ -190,8 +190,8 @@ export const appointmentsAPI = {
 
 // ─── Analytics API ────────────────────────────────────────────────────────────
 export const analyticsAPI = {
-  getDashboardOverview: () =>
-    api.get('/analytics/dashboard'),
+  getDashboardOverview: (params?: { range?: string }) =>
+    api.get('/analytics/dashboard', { params }),
   getAppointmentStats: (params?: { start_date?: string; end_date?: string }) =>
     api.get('/analytics/appointments', { params }),
   getRevenueAnalytics: (params?: { period?: string }) =>
