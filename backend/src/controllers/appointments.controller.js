@@ -99,7 +99,7 @@ export const getAppointments = async (req, res, next) => {
       params.push(status);
     }
 
-    sql += ` ORDER BY a.scheduled_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    sql += ` ORDER BY a.scheduled_at ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
     const result = await query(sql, params);

@@ -1,5 +1,7 @@
 import { query, withTransaction } from '../config/db.js';
 import bcrypt from 'bcryptjs';
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import logger from '../utils/logger.js';
 
 // ─── Slot Helpers (Duplicated for public use to minimize restructuring) ───────
 const timeToMinutes = (t) => {
@@ -373,6 +375,24 @@ export const createPublicAppointment = async (req, res, next) => {
 
       return apptRes.rows[0];
     });
+
+    // ─── Fire-and-forget WhatsApp confirmation (non-blocking) ───
+    (async () => {
+      try {
+        if (phone) {
+          const dateStr = new Date(`${appointment_date}T00:00:00`).toLocaleDateString('en-IN', { dateStyle: 'medium' });
+          const [h, m] = appointment_time.split(':');
+          const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
+          const hour12 = parseInt(h) % 12 || 12;
+          const timeStr = `${hour12}:${m} ${ampm}`;
+
+          const message = `🦷 Appointment Confirmed!\nDate: ${dateStr}\nTime: ${timeStr}\n\nThank you for booking with us!`;
+          sendWhatsAppMessage(phone, message);
+        }
+      } catch (err) {
+        logger.error('WhatsApp notification failed on public booking (non-blocking)', { error: err.message });
+      }
+    })();
 
     res.status(201).json({ success: true, data: { appointment: result } });
   } catch (error) {

@@ -3,6 +3,19 @@ import { query } from '../config/db.js';
 export const getDashboardAnalytics = async (req, res, next) => {
   try {
     const clinicId = req.clinicId;
+    const range = req.query.range || 'monthly';
+
+    // Build dynamic revenue condition based on filter
+    let revenueCondition = `scheduled_at >= date_trunc('month', NOW())`;
+    if (range === 'today') {
+      revenueCondition = `scheduled_at::date = CURRENT_DATE`;
+    } else if (range === 'yesterday') {
+      revenueCondition = `scheduled_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+    } else if (range === 'weekly') {
+      revenueCondition = `scheduled_at::date >= CURRENT_DATE - INTERVAL '7 days' AND scheduled_at::date <= CURRENT_DATE`;
+    } else if (range === 'yearly') {
+      revenueCondition = `EXTRACT(YEAR FROM scheduled_at) = EXTRACT(YEAR FROM CURRENT_DATE)`;
+    }
 
     const [patientsRec, statsRec, todayRec, upcomingRec, newPatientsRec] = await Promise.all([
       query('SELECT COUNT(*) FROM patients WHERE clinic_id = $1', [clinicId]),
@@ -12,7 +25,7 @@ export const getDashboardAnalytics = async (req, res, next) => {
                 COUNT(*) FILTER (WHERE status='no_show') as no_shows,
                 COALESCE(SUM(amount) FILTER (WHERE status='completed'),0) as revenue
          FROM appointments 
-         WHERE clinic_id=$1 AND scheduled_at >= date_trunc('month',NOW())`,
+         WHERE clinic_id=$1 AND ${revenueCondition}`,
         [clinicId]
       ),
       query(
