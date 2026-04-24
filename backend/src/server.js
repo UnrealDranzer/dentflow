@@ -68,7 +68,7 @@ app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 
 // 5. body parsers
 app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: false })); // Twilio webhooks send form-encoded data
+app.use(express.urlencoded({ extended: true })); // Twilio webhooks send form-encoded data
 
 // 6. Global rate limit (300 req per 15 min)
 const globalLimiter = rateLimit({
@@ -92,7 +92,7 @@ app.get('/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', otpRoutes);
 app.use('/api/billing', billingRoutes);
-app.use('/api', whatsappRoutes); // Twilio WhatsApp webhook (no auth)
+app.use('/api/webhook', whatsappRoutes); // Twilio WhatsApp webhook (no auth)
 app.get('/api/public/clinic/:slug', getPublicClinicBySlug);
 app.get('/api/public/available-slots', getPublicAvailableSlots);
 app.post('/api/public/book-appointment', validate(publicBookingSchema), createPublicAppointment);

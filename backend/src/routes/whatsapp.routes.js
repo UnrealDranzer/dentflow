@@ -4,6 +4,6 @@ import { handleIncomingMessage } from '../controllers/whatsapp.controller.js';
 const router = Router();
 
 // Twilio sends POST with form-encoded body — no auth required
-router.post('/webhook/whatsapp', handleIncomingMessage);
+router.post('/whatsapp', handleIncomingMessage);
 
 export default router;
