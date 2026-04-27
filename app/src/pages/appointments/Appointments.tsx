@@ -91,40 +91,6 @@ const Appointments = () => {
     );
   };
 
-  const renderAppointmentCard = (appointment: NormalizedAppointment, dimmed = false) => (
-    <div
-      key={appointment.appointment_id}
-      className={`flex items-center justify-between p-4 rounded-lg hover:bg-gray-100 transition-colors w-full overflow-hidden ${dimmed ? 'bg-gray-50/60 opacity-75' : 'bg-gray-50'}`}
-    >
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        <div
-          className={`rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0 px-3 py-2 min-w-[90px] sm:min-w-[100px] ${dimmed ? 'opacity-60' : ''}`}
-          style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
-        >
-          <span className="text-xs font-medium opacity-90 text-center">
-            {formatDate(appointment.appointment_date)}
-          </span>
-          <span className="text-sm font-bold mt-0.5 whitespace-nowrap">
-            {formatTime(appointment.appointment_time)}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900 truncate">{appointment.patient_name || '—'}</h4>
-          <p className="text-sm text-gray-500 truncate">{appointment.service_name || '—'}</p>
-          <p className="text-xs text-gray-400">{appointment.duration_mins || 0} minutes</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0 ml-2">
-        {getStatusBadge(appointment.status || 'scheduled')}
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/appointments/${appointment.appointment_id}`}>
-            View
-          </Link>
-        </Button>
-      </div>
-    </div>
-  );
-
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -240,53 +206,40 @@ const Appointments = () => {
               </Button>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* Group: Upcoming / Active */}
-              {(() => {
-                const upcoming = filteredAppointments.filter(a => ['scheduled', 'confirmed'].includes(a.status || ''));
-                const cancelledMissed = filteredAppointments.filter(a => ['cancelled', 'no_show'].includes(a.status || ''));
-                const completed = filteredAppointments.filter(a => a.status === 'completed');
-
-                return (
-                  <>
-                    {upcoming.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <Clock className="w-4 h-4 text-blue-500" />
-                          <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Upcoming ({upcoming.length})</h3>
-                        </div>
-                        <div className="space-y-2">
-                          {upcoming.map((appointment) => renderAppointmentCard(appointment))}
-                        </div>
-                      </div>
-                    )}
-
-                    {cancelledMissed.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <XCircle className="w-4 h-4 text-red-400" />
-                          <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wide">Cancelled / No Show ({cancelledMissed.length})</h3>
-                        </div>
-                        <div className="space-y-2">
-                          {cancelledMissed.map((appointment) => renderAppointmentCard(appointment, true))}
-                        </div>
-                      </div>
-                    )}
-
-                    {completed.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <h3 className="text-sm font-semibold text-green-600 uppercase tracking-wide">Completed ({completed.length})</h3>
-                        </div>
-                        <div className="space-y-2">
-                          {completed.map((appointment) => renderAppointmentCard(appointment, true))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+            <div className="space-y-3">
+              {filteredAppointments.map((appointment) => (
+                <div
+                  key={appointment.appointment_id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors w-full overflow-hidden"
+                >
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div
+                      className="rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0 px-3 py-2 min-w-[90px] sm:min-w-[100px]"
+                      style={{ backgroundColor: appointment.color_code || '#3B82F6' }}
+                    >
+                      <span className="text-xs font-medium opacity-90 text-center">
+                        {formatDate(appointment.appointment_date)}
+                      </span>
+                      <span className="text-sm font-bold mt-0.5 whitespace-nowrap">
+                        {formatTime(appointment.appointment_time)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate">{appointment.patient_name || '—'}</h4>
+                      <p className="text-sm text-gray-500 truncate">{appointment.service_name || '—'}</p>
+                      <p className="text-xs text-gray-400">{appointment.duration_mins || 0} minutes</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                    {getStatusBadge(appointment.status || 'scheduled')}
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/appointments/${appointment.appointment_id}`}>
+                        View
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
