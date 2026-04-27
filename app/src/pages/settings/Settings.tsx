@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import { handlePhoneInput, isValidPhone, normalizePhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 import {
-  Building2, Clock, Bell, Shield, Copy, ExternalLink, CheckCircle2, Server
+  Building2, Clock, Bell, Shield, Copy, ExternalLink, CheckCircle2, Server, Coffee
 } from 'lucide-react';
 
 const DAYS = [
@@ -41,6 +41,8 @@ const Settings = () => {
     working_hours_end:   '18:00',
     working_days:        [1, 2, 3, 4, 5, 6] as number[],
     slot_interval_minutes: 30,
+    break_start: '',
+    break_end: '',
   });
 
   // Notifications tab
@@ -91,6 +93,8 @@ const Settings = () => {
           working_hours_end:     c.working_hours_end     ? String(c.working_hours_end).slice(0,5)   : '18:00',
           working_days:          wd.map(Number),
           slot_interval_minutes: c.slot_interval_minutes || 30,
+          break_start:           c.break_start ? String(c.break_start).slice(0,5) : '',
+          break_end:             c.break_end   ? String(c.break_end).slice(0,5)   : '',
         });
 
         setNotifications({
@@ -131,7 +135,33 @@ const Settings = () => {
     }
   };
 
+  // Helper: convert HH:MM to readable AM/PM string
+  const toAmPm = (t: string) => {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return '';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
   const saveWorkingHours = async () => {
+    // Validate break times
+    if (workingHours.break_start && workingHours.break_end) {
+      if (workingHours.break_start >= workingHours.break_end) {
+        toast.error('Break start must be before break end');
+        return;
+      }
+      if (workingHours.break_start < workingHours.working_hours_start ||
+          workingHours.break_end > workingHours.working_hours_end) {
+        toast.error('Break time must be within working hours');
+        return;
+      }
+    } else if (workingHours.break_start || workingHours.break_end) {
+      toast.error('Please set both break start and end times, or leave both empty');
+      return;
+    }
+
     try {
       setIsSaving(true);
       const res = await clinicAPI.updateWorkingHours(workingHours);
@@ -341,7 +371,7 @@ const Settings = () => {
         </TabsContent>
 
         {/* ── Working Hours Tab ────────────────────────────────────── */}
-        <TabsContent value="hours" className="mt-6">
+        <TabsContent value="hours" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Working Hours</CardTitle>
@@ -382,6 +412,9 @@ const Settings = () => {
                     value={workingHours.working_hours_start}
                     onChange={e => setWorkingHours({ ...workingHours, working_hours_start: e.target.value })}
                   />
+                  {workingHours.working_hours_start && (
+                    <p className="text-xs text-gray-500">{toAmPm(workingHours.working_hours_start)}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Closing Time</Label>
@@ -390,6 +423,9 @@ const Settings = () => {
                     value={workingHours.working_hours_end}
                     onChange={e => setWorkingHours({ ...workingHours, working_hours_end: e.target.value })}
                   />
+                  {workingHours.working_hours_end && (
+                    <p className="text-xs text-gray-500">{toAmPm(workingHours.working_hours_end)}</p>
+                  )}
                 </div>
                 <div className="space-y-2 col-span-2 sm:col-span-1">
                   <Label>Default Slot Interval (minutes)</Label>
@@ -405,6 +441,64 @@ const Settings = () => {
 
               <Button onClick={saveWorkingHours} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save Working Hours'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* ── Break Time Card ──────────────────────────────────────── */}
+          <Card className="border-amber-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Coffee className="w-5 h-5 text-amber-600" />
+                Clinic Break (Optional)
+              </CardTitle>
+              <CardDescription>
+                Define a break period during working hours. Appointment slots will not be generated during this time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Break Start Time</Label>
+                  <Input
+                    type="time"
+                    value={workingHours.break_start}
+                    onChange={e => setWorkingHours({ ...workingHours, break_start: e.target.value })}
+                    placeholder="e.g. 13:00"
+                  />
+                  {workingHours.break_start && (
+                    <p className="text-xs text-gray-500">{toAmPm(workingHours.break_start)}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Break End Time</Label>
+                  <Input
+                    type="time"
+                    value={workingHours.break_end}
+                    onChange={e => setWorkingHours({ ...workingHours, break_end: e.target.value })}
+                    placeholder="e.g. 14:00"
+                  />
+                  {workingHours.break_end && (
+                    <p className="text-xs text-gray-500">{toAmPm(workingHours.break_end)}</p>
+                  )}
+                </div>
+              </div>
+              {workingHours.break_start && workingHours.break_end && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">
+                    <Coffee className="w-4 h-4 inline mr-1" />
+                    Break: {toAmPm(workingHours.break_start)} — {toAmPm(workingHours.break_end)}
+                  </p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    No appointment slots will be available during this time.
+                  </p>
+                </div>
+              )}
+              {!workingHours.break_start && !workingHours.break_end && (
+                <p className="text-sm text-gray-400 italic">No break configured — slots will be generated for the full working period.</p>
+              )}
+              <Button onClick={saveWorkingHours} disabled={isSaving} variant="outline">
+                {isSaving ? 'Saving...' : 'Save Break Time'}
               </Button>
             </CardContent>
           </Card>

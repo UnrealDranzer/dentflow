@@ -23,8 +23,13 @@ const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, 
   const isToday = date === now.toISOString().split('T')[0];
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
+  const bStartMin = breakStart ? timeToMinutes(breakStart) : null;
+  const bEndMin   = breakEnd   ? timeToMinutes(breakEnd)   : null;
+
   for (let t = startMin; t + serviceDuration <= endMin; t += interval) {
     if (isToday && t <= nowMinutes) continue;
+    // Skip slots that overlap with break period
+    if (bStartMin !== null && bEndMin !== null && t < bEndMin && t + serviceDuration > bStartMin) continue;
     let available = true;
     for (const a of existing) {
       const as = timeToMinutes(a.appointment_time);
@@ -422,7 +427,7 @@ export const getAvailableSlots = async (req, res, next) => {
       slot_interval = doctor.slot_interval;
     } else {
       const clinicRes = await query(
-        'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE id = $1',
+        'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, break_start, break_end, timezone FROM clinics WHERE id = $1',
         [clinicId]
       );
 
@@ -432,6 +437,8 @@ export const getAvailableSlots = async (req, res, next) => {
       working_days = clinic.working_days;
       start_time = clinic.working_hours_start || '09:00:00';
       end_time = clinic.working_hours_end || '18:00:00';
+      break_start = clinic.break_start || null;
+      break_end = clinic.break_end || null;
       slot_interval = clinic.slot_interval_minutes;
       timezone = clinic.timezone || 'Asia/Kolkata';
     }

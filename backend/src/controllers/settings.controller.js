@@ -24,8 +24,13 @@ const generateTimeSlots = (workingStart, workingEnd, serviceDuration, existing, 
   const isToday = date === now.toISOString().split('T')[0];
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
+  const bStartMin = breakStart ? timeToMinutes(breakStart) : null;
+  const bEndMin   = breakEnd   ? timeToMinutes(breakEnd)   : null;
+
   for (let t = startMin; t + serviceDuration <= endMin; t += interval) {
     if (isToday && t <= nowMinutes) continue;
+    // Skip slots that overlap with break period
+    if (bStartMin !== null && bEndMin !== null && t < bEndMin && t + serviceDuration > bStartMin) continue;
     let available = true;
     for (const a of existing) {
       const as = timeToMinutes(a.appointment_time);
@@ -69,7 +74,10 @@ export const getSettings = async (req, res, next) => {
       `SELECT id, name, email, phone, website, address, city, 
               state, country, postal_code, google_review_link, 
               booking_slug, logo_url, plan, trial_ends_at, 
-              subscription_ends_at
+              subscription_ends_at,
+              working_hours_start, working_hours_end, working_days,
+              slot_interval_minutes, break_start, break_end,
+              timezone, sms_enabled, whatsapp_enabled
        FROM clinics WHERE id = $1`,
       [req.clinicId]
     );
@@ -126,17 +134,38 @@ export const updateProfile = async (req, res, next) => {
 
 export const updateWorkingHours = async (req, res, next) => {
   try {
-    const { working_hours_start, working_hours_end, working_days, slot_interval_minutes } = req.body;
+    const { working_hours_start, working_hours_end, working_days, slot_interval_minutes, break_start, break_end } = req.body;
     const wDaysParam = Array.isArray(working_days) ? JSON.stringify(working_days) : null;
+
+    // Validate break times if provided
+    if (break_start && break_end) {
+      const bsMin = timeToMinutes(break_start);
+      const beMin = timeToMinutes(break_end);
+      if (bsMin >= beMin) {
+        return res.status(400).json({ success: false, message: 'Break start must be before break end.' });
+      }
+      const wsMin = timeToMinutes(working_hours_start || '00:00');
+      const weMin = timeToMinutes(working_hours_end || '23:59');
+      if (bsMin < wsMin || beMin > weMin) {
+        return res.status(400).json({ success: false, message: 'Break time must be within working hours.' });
+      }
+    }
+
+    // Use explicit NULL to clear break times when empty string is sent
+    const breakStartVal = break_start || null;
+    const breakEndVal   = break_end   || null;
+
     const result = await query(
       `UPDATE clinics
        SET working_hours_start = COALESCE($1, working_hours_start),
            working_hours_end = COALESCE($2, working_hours_end),
            working_days = COALESCE($3, working_days),
            slot_interval_minutes = COALESCE($4, slot_interval_minutes),
+           break_start = $5,
+           break_end = $6,
            updated_at = NOW()
-       WHERE id = $5 RETURNING *`,
-      [working_hours_start, working_hours_end, wDaysParam, slot_interval_minutes, req.clinicId]
+       WHERE id = $7 RETURNING *`,
+      [working_hours_start, working_hours_end, wDaysParam, slot_interval_minutes, breakStartVal, breakEndVal, req.clinicId]
     );
     res.json({ success: true, data: { settings: result.rows[0] } });
   } catch (err) { next(err); }
@@ -259,7 +288,7 @@ export const getPublicAvailableSlots = async (req, res, next) => {
 
     } else {
       const clinicRes = await query(
-        'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, timezone FROM clinics WHERE id = $1',
+        'SELECT working_hours_start, working_hours_end, working_days, slot_interval_minutes, break_start, break_end, timezone FROM clinics WHERE id = $1',
         [clinic_id]
       );
       if (clinicRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Clinic not found.' });
@@ -268,6 +297,8 @@ export const getPublicAvailableSlots = async (req, res, next) => {
       working_days = clinic.working_days;
       start_time = clinic.working_hours_start || '09:00:00';
       end_time = clinic.working_hours_end || '18:00:00';
+      break_start = clinic.break_start || null;
+      break_end = clinic.break_end || null;
       slot_interval = clinic.slot_interval_minutes;
       timezone = clinic.timezone || 'Asia/Kolkata';
     }

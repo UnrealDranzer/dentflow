@@ -13,6 +13,7 @@ import {
 import { Stethoscope, Calendar, Clock, User, Phone, Mail, CheckCircle, MapPin, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { handlePhoneInput, isValidPhone, normalizePhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
+import { formatTime } from '@/lib/formatters';
 
 interface Clinic {
   clinic_id: string;
@@ -206,7 +207,7 @@ const PublicBooking = () => {
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-4 text-left">
               <p className="text-sm"><strong>Date:</strong> {new Date(formData.appointment_date).toLocaleDateString()}</p>
-              <p className="text-sm"><strong>Time:</strong> {formData.appointment_time}</p>
+              <p className="text-sm"><strong>Time:</strong> {formatTime(formData.appointment_time)}</p>
               <p className="text-sm"><strong>Service:</strong> {services.find(s => s.service_id.toString() === formData.service_id)?.service_name}</p>
             </div>
             <p className="text-sm text-gray-500">
@@ -397,7 +398,7 @@ const PublicBooking = () => {
                               }
                             `}
                           >
-                            {slot.time}
+                            {formatTime(slot.time)}
                           </button>
                         ))}
                       </div>

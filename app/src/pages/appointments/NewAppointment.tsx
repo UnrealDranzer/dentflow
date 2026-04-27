@@ -13,6 +13,7 @@ import {
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPhoneDisplay } from '@/lib/phoneValidation';
+import { formatTime } from '@/lib/formatters';
 
 interface Patient { patient_id: string; name: string; phone: string; }
 interface Service { service_id: string; service_name: string; duration_minutes: number; price: number; }
@@ -286,14 +287,14 @@ const NewAppointment = () => {
                             : 'bg-white hover:bg-blue-50 border-gray-200 text-gray-700'
                         }`}
                       >
-                        {slotTime}
+                        {formatTime(slotTime)}
                       </button>
                     ))}
                   </div>
                 )}
                 {formData.appointment_time && (
                   <p className="text-sm text-blue-600 font-medium">
-                    ✓ Selected: {formData.appointment_time}
+                    ✓ Selected: {formatTime(formData.appointment_time)}
                   </p>
                 )}
               </div>

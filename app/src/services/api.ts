@@ -84,7 +84,7 @@ export const clinicAPI = {
     api.get('/clinics/settings'),
   updateProfile: (data: Partial<Clinic>) =>
     api.put('/clinics/settings/profile', data),
-  updateWorkingHours: (data: { working_hours_start?: string; working_hours_end?: string; working_days?: number[]; slot_interval_minutes?: number }) =>
+  updateWorkingHours: (data: { working_hours_start?: string; working_hours_end?: string; working_days?: number[]; slot_interval_minutes?: number; break_start?: string; break_end?: string }) =>
     api.put('/clinics/settings/working-hours', data),
   updateNotifications: (data: { sms_enabled?: boolean; whatsapp_enabled?: boolean; google_review_link?: string }) =>
     api.put('/clinics/settings/notifications', data),
@@ -261,6 +261,8 @@ export interface Clinic {
   timezone?: string;
   sms_enabled?: boolean;
   whatsapp_enabled?: boolean;
+  break_start?: string;
+  break_end?: string;
 }
 
 export interface Patient {
